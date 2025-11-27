@@ -13,6 +13,20 @@ export default async function DashboardDepositPage() {
 
   const depositAddress = process.env.DEPOSIT_ADDRESS || '0xDa51B37Bf7872f9adeF99eC99365d0673D027E72';
 
+  // Convert Decimal to number helper
+  const convertToNumber = (value: any): number => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'object' && value !== null) {
+      if ('toNumber' in value && typeof value.toNumber === 'function') {
+        return value.toNumber();
+      }
+      if ('toString' in value) {
+        return parseFloat(value.toString()) || 0;
+      }
+    }
+    return parseFloat(String(value)) || 0;
+  };
+
   const wallet = user.wallet || {
     balance: 0,
     depositBalance: 0,
@@ -20,7 +34,10 @@ export default async function DashboardDepositPage() {
     referralTotal: 0,
   };
 
-  const depositBalance = (user.wallet as { depositBalance?: number })?.depositBalance || 0;
+  const balance = convertToNumber(wallet.balance);
+  const depositBalance = convertToNumber((user.wallet as any)?.depositBalance) || 0;
+  const roiTotal = convertToNumber(wallet.roiTotal);
+  const referralTotal = convertToNumber(wallet.referralTotal);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -44,10 +61,10 @@ export default async function DashboardDepositPage() {
         {/* Current Wallet Balance */}
         <div className="mb-6">
           <WalletBalanceCard
-            balance={Number(wallet.balance)}
+            balance={balance}
             depositBalance={depositBalance}
-            roiTotal={Number(wallet.roiTotal)}
-            referralTotal={Number(wallet.referralTotal)}
+            roiTotal={roiTotal}
+            referralTotal={referralTotal}
           />
         </div>
 

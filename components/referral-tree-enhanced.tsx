@@ -50,7 +50,10 @@ export default function ReferralTreeEnhanced() {
   const fetchTree = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/user/referral-tree?maxLevels=${maxDepth}`);
+      const response = await fetch(`/api/user/referral-tree?maxLevels=${maxDepth}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         setTree(data.tree || []);
@@ -58,9 +61,15 @@ export default function ReferralTreeEnhanced() {
         // Auto-expand first level
         const firstLevelIds = data.tree?.map((m: TeamMember) => m.id) || [];
         setExpandedNodes(new Set(firstLevelIds));
+      } else {
+        console.error('Failed to fetch referral tree:', response.status);
+        setTree([]);
+        setLevelStats({});
       }
     } catch (error) {
       console.error('Error fetching referral tree:', error);
+      setTree([]);
+      setLevelStats({});
     } finally {
       setLoading(false);
     }
@@ -221,75 +230,99 @@ export default function ReferralTreeEnhanced() {
     const indent = depth * 24;
 
     return (
-      <div key={member.id} className="mb-2 relative">
+      <div key={member.id} className="mb-2 relative" style={{ paddingLeft: `${Math.min(indent, 40)}px` }}>
         <div
-          className={`flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors ${
+          className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 sm:p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors ${
             selectedUser?.id === member.id ? 'bg-purple-50 border-purple-300' : ''
           }`}
-          style={{ marginLeft: `${indent}px` }}
         >
-          {/* Expand/Collapse Button */}
-          <button
-            onClick={() => toggleExpand(member.id)}
-            className={`w-6 h-6 flex items-center justify-center rounded flex-shrink-0 ${
-              hasChildren
-                ? 'bg-purple-100 text-purple-600 hover:bg-purple-200'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            }`}
-            disabled={!hasChildren}
-          >
-            {hasChildren && (
-              <svg
-                className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            )}
-          </button>
+          {/* Left Section: Expand Button + Avatar + User Info */}
+          <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0 w-full sm:w-auto">
+            {/* Expand/Collapse Button */}
+            <button
+              onClick={() => toggleExpand(member.id)}
+              className={`w-6 h-6 flex items-center justify-center rounded flex-shrink-0 ${
+                hasChildren
+                  ? 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+              disabled={!hasChildren}
+            >
+              {hasChildren && (
+                <svg
+                  className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              )}
+            </button>
 
-          {/* User Avatar */}
-          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-purple-600 font-semibold text-sm">
-              {(member.name || member.email)[0].toUpperCase()}
-            </span>
-          </div>
-
-          {/* User Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold text-gray-900 truncate">
-                {member.name || 'Unknown User'}
-              </p>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                member.isActive
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-600'
-              }`}>
-                {member.isActive ? 'Active' : 'Inactive'}
-              </span>
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                Level {member.level}
+            {/* User Avatar */}
+            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-purple-600 font-semibold text-sm">
+                {(member.name || member.email || 'U')[0].toUpperCase()}
               </span>
             </div>
-            <p className="text-sm text-gray-700 truncate font-medium">{member.email}</p>
-            <div className="flex items-center gap-4 mt-1 text-xs text-gray-600">
-              <span className="font-medium">Code: {member.referralCode}</span>
-              <span>•</span>
-              <span className="font-medium">Joined: {new Date(member.createdAt).toLocaleDateString()}</span>
+
+            {/* User Info */}
+            <div className="flex-1 min-w-0 w-full sm:w-auto">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                  {member.name || 'Unknown User'}
+                </p>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
+                  member.isActive
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {member.isActive ? 'Active' : 'Inactive'}
+                </span>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex-shrink-0">
+                  Level {member.level}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-700 truncate font-medium mt-1">{member.email || 'No email'}</p>
+              <div className="flex items-center gap-2 sm:gap-4 mt-1 text-xs text-gray-600 flex-wrap">
+                <span className="font-medium">Code: {member.referralCode}</span>
+                <span className="hidden sm:inline">•</span>
+                <span className="font-medium">Joined: {new Date(member.createdAt).toLocaleDateString()}</span>
+              </div>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="text-right flex-shrink-0 hidden md:block">
-            <div className="grid grid-cols-3 gap-4 text-sm">
+          {/* Stats - Show on mobile but in a different layout */}
+          <div className="text-right flex-shrink-0 w-full sm:w-auto mt-3 sm:mt-0 sm:block">
+            {/* Mobile: Stack stats vertically */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 text-sm sm:hidden">
+              <div className="text-center">
+                <p className="text-gray-700 text-xs font-semibold">Inv</p>
+                <p className="font-semibold text-gray-900 text-xs">
+                  ${(member.totalInvestment / 1000).toFixed(1)}k
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-gray-700 text-xs font-semibold">Earn</p>
+                <p className="font-semibold text-green-600 text-xs">
+                  ${(member.totalEarningsGenerated / 1000).toFixed(1)}k
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-gray-700 text-xs font-semibold">Act</p>
+                <p className="font-semibold text-purple-600 text-xs">
+                  {member.activeInvestments}
+                </p>
+              </div>
+            </div>
+            {/* Desktop: Original layout */}
+            <div className="hidden sm:grid grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-gray-700 text-xs font-semibold">Investment</p>
                 <p className="font-semibold text-gray-900">
@@ -314,7 +347,7 @@ export default function ReferralTreeEnhanced() {
           {/* View Details Button */}
           <button
             onClick={() => setSelectedUser(member)}
-            className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors flex-shrink-0"
+            className="w-full sm:w-auto px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors flex-shrink-0"
           >
             Details
           </button>
@@ -341,8 +374,8 @@ export default function ReferralTreeEnhanced() {
   return (
     <div className="space-y-6">
       {/* Controls Bar */}
-      <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-100">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="bg-white rounded-xl p-3 sm:p-4 shadow-lg border border-gray-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           {/* Search */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
@@ -407,8 +440,8 @@ export default function ReferralTreeEnhanced() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between flex-wrap gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               type="checkbox"
               id="filterActive"
@@ -442,7 +475,7 @@ export default function ReferralTreeEnhanced() {
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={expandAll}
               className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
@@ -467,7 +500,7 @@ export default function ReferralTreeEnhanced() {
 
       {/* Level Statistics */}
       {Object.keys(levelStats).length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {Object.entries(levelStats)
             .sort(([a], [b]) => parseInt(a) - parseInt(b))
             .map(([level, stats]) => (
@@ -497,9 +530,9 @@ export default function ReferralTreeEnhanced() {
       )}
 
       {/* Tree View */}
-      <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">
+      <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-gray-100 overflow-x-auto">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 mb-4">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
             Referral Tree ({filteredAndSorted.length} users)
           </h2>
           <div className="text-sm text-gray-600">
@@ -579,8 +612,8 @@ export default function ReferralTreeEnhanced() {
       {selectedUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-gray-900">User Details</h3>
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900">User Details</h3>
               <button
                 onClick={() => setSelectedUser(null)}
                 className="text-gray-400 hover:text-gray-600"
@@ -590,8 +623,8 @@ export default function ReferralTreeEnhanced() {
                 </svg>
               </button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-700 font-semibold mb-1">Name</p>
                   <p className="font-semibold text-gray-900 text-base">{selectedUser.name || 'N/A'}</p>

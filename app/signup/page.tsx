@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
@@ -8,21 +8,51 @@ import Link from 'next/link';
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const referralCode = searchParams.get('ref');
+  const urlReferralCode = searchParams.get('ref');
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
+    referralCode: urlReferralCode?.toUpperCase() || '', // Pre-fill from URL if present
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Update referral code when URL changes
+  useEffect(() => {
+    if (urlReferralCode && !formData.referralCode) {
+      setFormData(prev => ({ ...prev, referralCode: urlReferralCode.toUpperCase() }));
+    }
+  }, [urlReferralCode, formData.referralCode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    // Client-side validation
+    if (!formData.email || !formData.password) {
+      setError('Email and password are required');
+      setLoading(false);
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
+      setLoading(false);
+      return;
+    }
+
+    // Password length validation
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/auth/signup', {
@@ -31,40 +61,77 @@ function SignupForm() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...formData,
-          referralCode: referralCode || null,
+          name: formData.name?.trim() || null,
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+          referralCode: formData.referralCode && formData.referralCode.trim() 
+            ? formData.referralCode.trim().toUpperCase() 
+            : null,
         }),
+        credentials: 'include',
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        const text = await response.text();
+        if (!text) {
+          setError('Server returned empty response. Please check your connection and try again.');
+          setLoading(false);
+          return;
+        }
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('Response parse error:', parseError);
+        setError('Server error. Please check your connection and try again.');
+        setLoading(false);
+        return;
+      }
 
       if (!response.ok) {
-        setError(data.error || 'Something went wrong');
+        const errorMsg = data?.error || `Server error (${response.status}). Please try again.`;
+        console.error('Signup failed:', errorMsg, data);
+        
+        // Provide user-friendly error messages
+        if (response.status === 500) {
+          setError('Server error. Please try again in a moment. If the problem persists, contact support.');
+        } else if (response.status === 400) {
+          setError(errorMsg);
+        } else {
+          setError(errorMsg || 'An error occurred. Please try again.');
+        }
         setLoading(false);
         return;
       }
 
       // Auto sign in after successful registration
-      const signInResult = await signIn('credentials', {
-        email: formData.email,
-        password: formData.password,
-        redirect: false,
-      });
+      try {
+        const signInResult = await signIn('credentials', {
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+          redirect: false,
+        });
 
-      if (signInResult?.ok) {
-        router.push('/dashboard');
-      } else {
+        if (signInResult?.ok) {
+          router.push('/dashboard');
+        } else {
+          // If auto sign-in fails, redirect to login page
+          router.push('/login?registered=true');
+        }
+      } catch (signInError) {
+        // If sign-in fails, redirect to login page
+        console.error('Auto sign-in error:', signInError);
         router.push('/login?registered=true');
       }
-    } catch {
-      setError('Network error. Please try again.');
+    } catch (fetchError) {
+      console.error('Signup fetch error:', fetchError);
+      setError('Network error. Please check your connection and try again.');
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800 px-4 py-12">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800 px-4 py-6 sm:py-12">
+      <div className="max-w-md w-full space-y-6 sm:space-y-8">
         {/* Logo */}
         <div className="flex justify-center">
           <div className="relative">
@@ -76,14 +143,14 @@ function SignupForm() {
 
         {/* Title and Subtitle */}
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-white mb-2">Create Account</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Create Account</h1>
           <p className="text-gray-300 text-sm">Join us and start earning today</p>
         </div>
 
         {/* Referral Code Badge */}
-        {referralCode && (
+        {urlReferralCode && (
           <div className="bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-3 rounded-lg text-sm text-center">
-            <p className="font-medium">Referred by: {referralCode}</p>
+            <p className="font-medium">Referred by: {urlReferralCode}</p>
             <p className="text-xs mt-1 text-green-300">You&apos;ll be part of their team!</p>
           </div>
         )}
@@ -123,7 +190,7 @@ function SignupForm() {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="block w-full pl-10 pr-3 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                className="block w-full pl-10 pr-3 py-3 text-base bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
                 placeholder="Enter your name"
               />
             </div>
@@ -157,10 +224,49 @@ function SignupForm() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="block w-full pl-10 pr-3 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                className="block w-full pl-10 pr-3 py-3 text-base bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
                 placeholder="Enter your email"
               />
             </div>
+          </div>
+
+          {/* Referral Code Field */}
+          <div>
+            <label htmlFor="referralCode" className="block text-sm font-medium text-gray-300 mb-2">
+              Referral Code (Optional)
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+              </div>
+              <input
+                id="referralCode"
+                name="referralCode"
+                type="text"
+                value={formData.referralCode}
+                onChange={(e) => setFormData({ ...formData, referralCode: e.target.value.toUpperCase() })}
+                className="block w-full pl-10 pr-3 py-3 text-base bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent uppercase"
+                placeholder="Enter referral code (optional)"
+                maxLength={20}
+              />
+            </div>
+            {formData.referralCode && (
+              <p className="text-xs text-green-300 mt-1">
+                You&apos;ll be part of {formData.referralCode}&apos;s team!
+              </p>
+            )}
           </div>
 
           {/* Password Field */}
@@ -191,7 +297,7 @@ function SignupForm() {
                 required
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="block w-full pl-10 pr-10 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                className="block w-full pl-10 pr-10 py-3 text-base bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
                 placeholder="Enter your password"
               />
               <button
@@ -291,11 +397,16 @@ function SignupForm() {
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800">
-        <div className="text-white">Loading...</div>
-      </div>
-    }>
+    <Suspense 
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800">
+          <div className="text-center text-white">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <p>Loading signup form...</p>
+          </div>
+        </div>
+      }
+    >
       <SignupForm />
     </Suspense>
   );

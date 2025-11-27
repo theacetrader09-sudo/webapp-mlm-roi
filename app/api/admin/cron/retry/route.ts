@@ -147,12 +147,30 @@ export async function POST(request: NextRequest) {
             REFERRAL_COMMISSION_PERCENTS.length
           );
 
+          // Distribute referral commissions
+          // Only pay commissions to users who have at least one active investment
+          // Chain continues even if intermediate users are inactive
           for (let level = 0; level < uplineChain.length && level < REFERRAL_COMMISSION_PERCENTS.length; level++) {
             const uplineUser = uplineChain[level];
             const commissionPercent = REFERRAL_COMMISSION_PERCENTS[level];
             const commissionAmount = (roiAmount * commissionPercent) / 100;
 
             if (commissionAmount > 0) {
+              // Check if upline user has at least one active investment
+              const activeInvestmentCount = await tx.investment.count({
+                where: {
+                  userId: uplineUser.userId,
+                  isActive: true,
+                  status: 'ACTIVE',
+                },
+              });
+
+              // Skip this user if they don't have any active investments
+              // But continue to the next level (chain doesn't break)
+              if (activeInvestmentCount === 0) {
+                continue; // Skip this level, continue to next
+              }
+
               const uplineWallet = await tx.wallet.findUnique({
                 where: { id: uplineUser.walletId },
                 select: { balance: true },

@@ -14,6 +14,16 @@ export async function GET() {
 
     const referralLink = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/signup?ref=${user.referralCode}`;
 
+    // Convert Decimal to number helper
+    const convertToNumber = (value: any): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'object' && value !== null) {
+        if ('toNumber' in value) return value.toNumber();
+        if ('toString' in value) return parseFloat(value.toString());
+      }
+      return parseFloat(String(value)) || 0;
+    };
+
     return NextResponse.json({
       id: user.id,
       name: user.name,
@@ -23,10 +33,10 @@ export async function GET() {
       role: user.role,
       wallet: user.wallet
         ? {
-            balance: user.wallet.balance,
-            depositBalance: (user.wallet as { depositBalance?: number }).depositBalance || 0,
-            roiTotal: user.wallet.roiTotal,
-            referralTotal: user.wallet.referralTotal,
+            balance: convertToNumber(user.wallet.balance),
+            depositBalance: convertToNumber((user.wallet as { depositBalance?: any }).depositBalance) || 0,
+            roiTotal: convertToNumber(user.wallet.roiTotal),
+            referralTotal: convertToNumber(user.wallet.referralTotal),
           }
         : null,
       referralLink,

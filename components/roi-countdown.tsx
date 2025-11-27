@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface ROICountdownProps {
   showLabel?: boolean;
@@ -13,6 +13,7 @@ export default function ROICountdown({ showLabel = true, size = 'medium' }: ROIC
     minutes: number;
     seconds: number;
   } | null>(null);
+  const lastTriggerTimeRef = useRef<number>(0);
 
   useEffect(() => {
     const calculateTimeUntilNextROI = () => {
@@ -51,11 +52,44 @@ export default function ROICountdown({ showLabel = true, size = 'medium' }: ROIC
       const minutes = Math.max(0, Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)));
       const seconds = Math.max(0, Math.floor((diff % (1000 * 60)) / 1000));
 
-      return { hours, minutes, seconds };
+      return { hours, minutes, seconds, totalSeconds: diff / 1000 };
     };
 
     const updateCountdown = () => {
-      setTimeLeft(calculateTimeUntilNextROI());
+      const timeData = calculateTimeUntilNextROI();
+      setTimeLeft({
+        hours: timeData.hours,
+        minutes: timeData.minutes,
+        seconds: timeData.seconds,
+      });
+
+      // Auto-trigger ROI cron when countdown reaches zero (within 10 seconds tolerance)
+      // This is a fallback for local development - production uses Vercel Cron
+      // Only trigger once per day (prevent multiple triggers)
+      const now = Date.now();
+      const oneDayAgo = now - (24 * 60 * 60 * 1000);
+      
+      if (timeData.totalSeconds >= 0 && timeData.totalSeconds <= 10 && lastTriggerTimeRef.current < oneDayAgo) {
+        // Trigger ROI cron automatically (only once per day)
+        lastTriggerTimeRef.current = now;
+        fetch('/api/cron/daily-roi', {
+          method: 'GET',
+          credentials: 'include',
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.status === 'success' || data.status === 'already_run') {
+              console.log('✅ ROI cron triggered successfully:', data.message);
+              // Refresh page after 2 seconds to show updated balances
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+            }
+          })
+          .catch((error) => {
+            console.log('ROI cron auto-trigger attempted (may have already run)');
+          });
+      }
     };
 
     // Initial calculation

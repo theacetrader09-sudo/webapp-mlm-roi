@@ -21,13 +21,24 @@ export default function ActiveInvestmentsCard() {
   useEffect(() => {
     async function fetchInvestments() {
       try {
-        const response = await fetch('/api/investments');
-        const data = await response.json();
-        if (data.investments) {
-          setInvestments(data.investments);
+        const response = await fetch('/api/investments', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.investments && Array.isArray(data.investments)) {
+            setInvestments(data.investments);
+          } else {
+            setInvestments([]);
+          }
+        } else {
+          console.error('Failed to fetch investments:', response.status);
+          setInvestments([]);
         }
       } catch (error) {
         console.error('Error fetching investments:', error);
+        setInvestments([]);
       } finally {
         setLoading(false);
       }

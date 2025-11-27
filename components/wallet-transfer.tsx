@@ -51,12 +51,15 @@ export default function WalletTransfer() {
 
   const fetchWalletBalance = async () => {
     try {
-      const response = await fetch('/api/user/me');
+      const response = await fetch('/api/user/me', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         setWalletBalance({
-          balance: data.wallet?.balance || 0,
-          depositBalance: data.wallet?.depositBalance || 0,
+          balance: Number(data.wallet?.balance) || 0,
+          depositBalance: Number(data.wallet?.depositBalance) || 0,
         });
       }
     } catch (error) {
@@ -66,25 +69,37 @@ export default function WalletTransfer() {
 
   const fetchTransferHistory = async () => {
     try {
-      const response = await fetch('/api/wallet/transfer/history');
+      const response = await fetch('/api/wallet/transfer/history', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         setTransfers(data.transfers || []);
+      } else {
+        setTransfers([]);
       }
     } catch (error) {
       console.error('Error fetching transfer history:', error);
+      setTransfers([]);
     }
   };
 
   const searchUsers = async () => {
     try {
-      const response = await fetch(`/api/wallet/transfer/search?q=${encodeURIComponent(searchQuery)}`);
+      const response = await fetch(`/api/wallet/transfer/search?q=${encodeURIComponent(searchQuery)}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         setSearchResults(data.users || []);
+      } else {
+        setSearchResults([]);
       }
     } catch (error) {
       console.error('Error searching users:', error);
+      setSearchResults([]);
     }
   };
 
@@ -106,6 +121,7 @@ export default function WalletTransfer() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           toUserId: selectedUser.id,
           amount: parseFloat(amount),

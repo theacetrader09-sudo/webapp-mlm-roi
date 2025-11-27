@@ -35,16 +35,25 @@ export default function WalletView({
   const fetchTransactions = async () => {
     try {
       // Fetch earnings (ROI and referrals)
-      const earningsRes = await fetch('/api/user/earnings');
-      const earningsData = await earningsRes.json();
+      const earningsRes = await fetch('/api/user/earnings', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const earningsData = earningsRes.ok ? await earningsRes.json() : { success: false, earnings: [] };
 
       // Fetch deposits
-      const depositsRes = await fetch('/api/deposit/history');
-      const depositsData = await depositsRes.json();
+      const depositsRes = await fetch('/api/deposit/history', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const depositsData = depositsRes.ok ? await depositsRes.json() : { success: false, deposits: [] };
 
       // Fetch withdrawals
-      const withdrawalsRes = await fetch('/api/withdraw/history');
-      const withdrawalsData = await withdrawalsRes.json();
+      const withdrawalsRes = await fetch('/api/withdraw/history', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const withdrawalsData = withdrawalsRes.ok ? await withdrawalsRes.json() : { success: false, withdrawals: [] };
 
       const allTransactions: Transaction[] = [];
 

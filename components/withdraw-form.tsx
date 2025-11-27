@@ -30,11 +30,14 @@ export default function WithdrawForm({ currentBalance }: WithdrawFormProps) {
   useEffect(() => {
     fetchHistory();
     // Fetch updated balance
-    fetch('/api/user/me')
+    fetch('/api/user/me', {
+      credentials: 'include',
+      cache: 'no-store',
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.wallet) {
-          setBalance(data.wallet.balance);
+          setBalance(Number(data.wallet.balance) || 0);
         }
       })
       .catch(() => {
@@ -45,13 +48,22 @@ export default function WithdrawForm({ currentBalance }: WithdrawFormProps) {
   const fetchHistory = async () => {
     try {
       setLoadingHistory(true);
-      const response = await fetch('/api/withdraw/history');
-      const data = await response.json();
-      if (data.success) {
-        setWithdrawals(data.withdrawals);
+      const response = await fetch('/api/withdraw/history', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.withdrawals)) {
+          setWithdrawals(data.withdrawals);
+        } else {
+          setWithdrawals([]);
+        }
+      } else {
+        setWithdrawals([]);
       }
     } catch {
-      // Error fetching withdrawal history - continue
+      setWithdrawals([]);
     } finally {
       setLoadingHistory(false);
     }
@@ -69,6 +81,7 @@ export default function WithdrawForm({ currentBalance }: WithdrawFormProps) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           amount: parseFloat(amount),
         }),
@@ -87,10 +100,13 @@ export default function WithdrawForm({ currentBalance }: WithdrawFormProps) {
       await fetchHistory();
       
       // Update balance
-      const userResponse = await fetch('/api/user/me');
+      const userResponse = await fetch('/api/user/me', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
       const userData = await userResponse.json();
       if (userData.wallet) {
-        setBalance(userData.wallet.balance);
+        setBalance(Number(userData.wallet.balance) || 0);
       }
     } catch {
       setError('Network error. Please try again.');

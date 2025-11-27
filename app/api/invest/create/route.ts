@@ -63,17 +63,19 @@ export async function POST(request: NextRequest) {
         wallet = await tx.wallet.create({
           data: {
             userId: user.id,
-            balance: 0,
-            depositBalance: 0,
-            roiTotal: 0,
-            referralTotal: 0,
+            balance: new Decimal(0),
+            depositBalance: new Decimal(0),
+            roiTotal: new Decimal(0),
+            referralTotal: new Decimal(0),
           },
         });
       }
 
       // Check deposit balance (not main balance)
-      const depositBalance = wallet.depositBalance || 0;
-      if (depositBalance < amount) {
+      const depositBalance = new Decimal(wallet.depositBalance || 0);
+      const amountDecimal = new Decimal(amount);
+
+      if (depositBalance.lt(amountDecimal)) {
         throw new Error('Insufficient deposit balance. Please deposit funds first.');
       }
 
@@ -84,8 +86,8 @@ export async function POST(request: NextRequest) {
           walletId: wallet.id,
           packageId: null, // No longer using Package model
           packageName: packageInfo.name,
-          amount,
-          dailyROI: new Decimal(packageInfo.dailyROI),
+          amount: amountDecimal,
+          dailyROI: packageInfo.dailyROI,
           startDate: new Date(),
           isActive: true,
           status: 'ACTIVE',
@@ -93,12 +95,12 @@ export async function POST(request: NextRequest) {
       });
 
       // Reserve funds: subtract from deposit balance
-      const beforeDepositBalance = wallet.depositBalance || 0;
+      const beforeDepositBalance = new Decimal(wallet.depositBalance || 0);
       const updatedWallet = await tx.wallet.update({
         where: { id: wallet.id },
         data: {
           depositBalance: {
-            decrement: amount,
+            decrement: amountDecimal,
           },
         },
       });
@@ -107,9 +109,9 @@ export async function POST(request: NextRequest) {
       await createAuditLog({
         userId: user.id,
         action: 'INVESTMENT_CREATED',
-        amount: amount,
+        amount: amountDecimal,
         before: beforeDepositBalance,
-        after: updatedWallet.depositBalance || 0,
+        after: new Decimal(updatedWallet.depositBalance || 0),
         meta: {
           investmentId: investment.id,
           packageName: packageInfo.name,
@@ -132,6 +134,7 @@ export async function POST(request: NextRequest) {
         investment: {
           ...investmentWithDetails,
           dailyROI: investmentWithDetails?.dailyROI.toNumber(),
+          amount: investmentWithDetails?.amount.toNumber(),
         },
         message: 'Investment created successfully',
       },
@@ -149,6 +152,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: error.message },
           { status: 404 }
+        );
+      }
+      if (error.message.includes('Insufficient deposit balance')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 }
         );
       }
     }

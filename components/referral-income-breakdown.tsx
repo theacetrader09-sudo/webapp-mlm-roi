@@ -33,13 +33,20 @@ export default function ReferralIncomeBreakdown() {
   useEffect(() => {
     async function fetchBreakdown() {
       try {
-        const response = await fetch('/api/user/referral-income-breakdown');
+        const response = await fetch('/api/user/referral-income-breakdown', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
         if (response.ok) {
           const data = await response.json();
           setBreakdown(data.breakdown || []);
+        } else {
+          console.error('Failed to fetch referral income breakdown:', response.status);
+          setBreakdown([]);
         }
       } catch (error) {
         console.error('Error fetching referral income breakdown:', error);
+        setBreakdown([]);
       } finally {
         setLoading(false);
       }
@@ -58,10 +65,16 @@ export default function ReferralIncomeBreakdown() {
     setSelectedUser(referralCode);
     // Fetch daily ROI details for this user
     try {
-      const response = await fetch(`/api/user/referral-daily-details?refCode=${referralCode}`);
+      const response = await fetch(`/api/user/referral-daily-details?refCode=${referralCode}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         setDailyDetails(data.details || []);
+      } else {
+        console.error('Failed to fetch daily details:', response.status);
+        setDailyDetails([]);
       }
     } catch (error) {
       console.error('Error fetching daily details:', error);
@@ -109,45 +122,47 @@ export default function ReferralIncomeBreakdown() {
             onClick={() => handleUserClick(user.referralCode)}
             className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1">
-                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                  <span className="text-purple-600 font-semibold">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+              <div className="flex items-center gap-3 flex-1 w-full min-w-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-purple-600 font-semibold text-sm sm:text-base">
                     {user.userName[0]?.toUpperCase() || 'U'}
                   </span>
                 </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-900">{user.userName}</p>
-                  <p className="text-sm text-gray-700 font-medium">{user.userEmail}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{user.userName}</p>
+                  <p className="text-xs sm:text-sm text-gray-700 font-medium truncate">{user.userEmail}</p>
                   <p className="text-xs text-gray-600 font-medium mt-1">
                     Code: {user.referralCode}
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-purple-600">
-                  ${user.totalEarnings.toFixed(2)}
-                </p>
-                <p className="text-sm text-gray-700 font-medium">
-                  ${user.dailyEarnings.toFixed(2)}/day
-                </p>
-              </div>
-              <div className="ml-4">
-                <svg
-                  className={`w-5 h-5 text-gray-400 transition-transform ${
-                    selectedUser === user.referralCode ? 'rotate-180' : ''
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
+              <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                <div className="text-left sm:text-right">
+                  <p className="text-base sm:text-lg font-bold text-purple-600">
+                    ${user.totalEarnings.toFixed(2)}
+                  </p>
+                  <p className="text-xs sm:text-sm text-gray-700 font-medium">
+                    ${user.dailyEarnings.toFixed(2)}/day
+                  </p>
+                </div>
+                <div className="ml-auto sm:ml-4">
+                  <svg
+                    className={`w-5 h-5 text-gray-400 transition-transform flex-shrink-0 ${
+                      selectedUser === user.referralCode ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </div>
               </div>
             </div>
           </button>

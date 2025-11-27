@@ -34,12 +34,21 @@ export async function GET() {
       },
     });
 
+    // Convert Decimal to number helper
+    const convertToNumber = (value: any): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'object' && value !== null) {
+        if ('toNumber' in value) return value.toNumber();
+        if ('toString' in value) return parseFloat(value.toString());
+      }
+      return parseFloat(String(value)) || 0;
+    };
+
     // Convert Decimal to number for JSON response
     const investmentsWithNumbers = investments.map((inv) => ({
       ...inv,
-      dailyROI: typeof inv.dailyROI === 'object' && 'toNumber' in inv.dailyROI
-        ? inv.dailyROI.toNumber()
-        : Number(inv.dailyROI),
+      amount: convertToNumber(inv.amount),
+      dailyROI: convertToNumber(inv.dailyROI),
     }));
 
     return NextResponse.json({

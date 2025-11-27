@@ -25,24 +25,34 @@ export async function GET() {
       },
     });
 
-    const totalTeamIncome = referralEarnings.reduce((sum, e) => sum + e.amount, 0);
+    // Convert Decimal to number helper
+    const convertToNumber = (value: any): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'object' && value !== null) {
+        if ('toNumber' in value) return value.toNumber();
+        if ('toString' in value) return parseFloat(value.toString());
+      }
+      return parseFloat(String(value)) || 0;
+    };
 
-    // Get today's team income
+    const totalTeamIncome = referralEarnings.reduce((sum, e) => sum + convertToNumber(e.amount), 0);
+
+    // Get today's team income (UTC)
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
     const endOfToday = new Date(startOfToday);
-    endOfToday.setDate(endOfToday.getDate() + 1);
+    endOfToday.setUTCDate(endOfToday.getUTCDate() + 1);
 
     const todayTeamIncome = referralEarnings
       .filter((e) => {
         const createdAt = new Date(e.createdAt);
         return createdAt >= startOfToday && createdAt < endOfToday;
       })
-      .reduce((sum, e) => sum + e.amount, 0);
+      .reduce((sum, e) => sum + convertToNumber(e.amount), 0);
 
     return NextResponse.json({
-      totalTeamIncome,
-      todayTeamIncome,
+      totalTeamIncome: Number(totalTeamIncome.toFixed(2)),
+      todayTeamIncome: Number(todayTeamIncome.toFixed(2)),
       totalTransactions: referralEarnings.length,
     });
   } catch (error) {

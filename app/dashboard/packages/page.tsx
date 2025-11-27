@@ -11,6 +11,20 @@ export default async function PackagesPage() {
     redirect('/login');
   }
 
+  // Convert Decimal to number helper
+  const convertToNumber = (value: any): number => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'object' && value !== null) {
+      if ('toNumber' in value && typeof value.toNumber === 'function') {
+        return value.toNumber();
+      }
+      if ('toString' in value) {
+        return parseFloat(value.toString()) || 0;
+      }
+    }
+    return parseFloat(String(value)) || 0;
+  };
+
   const wallet = user.wallet || {
     balance: 0,
     depositBalance: 0,
@@ -18,7 +32,7 @@ export default async function PackagesPage() {
     referralTotal: 0,
   };
   
-  const depositBalance = (user.wallet as { depositBalance?: number })?.depositBalance || 0;
+  const depositBalance = convertToNumber((user.wallet as any)?.depositBalance) || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">

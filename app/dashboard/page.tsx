@@ -1,5 +1,6 @@
 import { getCurrentUser } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import LogoutButton from '@/components/logout-button';
 import BottomNavigation from '@/components/bottom-navigation';
 import DashboardClient from '@/components/dashboard-client';
@@ -20,6 +21,25 @@ export default async function DashboardPage() {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   const referralLink = `${baseUrl}/signup?ref=${user.referralCode}`;
 
+  // Wallet fields are Float type in Prisma, so they're already numbers
+  // But we'll ensure they're properly converted just in case
+  const convertToNumber = (value: any): number => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number') return isNaN(value) ? 0 : value;
+    if (typeof value === 'object' && value !== null) {
+      if ('toNumber' in value && typeof value.toNumber === 'function') {
+        return value.toNumber();
+      }
+      if ('toString' in value) {
+        const parsed = parseFloat(value.toString());
+        return isNaN(parsed) ? 0 : parsed;
+      }
+    }
+    const parsed = parseFloat(String(value));
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  // Ensure wallet exists, create default if not
   const wallet = user.wallet || {
     balance: 0,
     depositBalance: 0,
@@ -27,7 +47,26 @@ export default async function DashboardPage() {
     referralTotal: 0,
   };
   
-  const depositBalance = (user.wallet as { depositBalance?: number })?.depositBalance || 0;
+  // Convert all values to ensure they're numbers
+  const balance = convertToNumber(wallet.balance);
+  const depositBalance = convertToNumber(wallet.depositBalance);
+  const roiTotal = convertToNumber(wallet.roiTotal);
+  const referralTotal = convertToNumber(wallet.referralTotal);
+
+  // Debug logging (remove in production)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Dashboard Data:', {
+      userId: user.id,
+      email: user.email,
+      wallet: {
+        balance,
+        depositBalance,
+        roiTotal,
+        referralTotal,
+      },
+      rawWallet: wallet,
+    });
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -38,7 +77,18 @@ export default async function DashboardPage() {
             <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
               Dashboard
             </h1>
-            <LogoutButton />
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard/profile"
+                className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                title="Profile"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </Link>
+              <LogoutButton />
+            </div>
           </div>
         </div>
       </header>
@@ -52,10 +102,10 @@ export default async function DashboardPage() {
         {/* Wallet Balance Card - Prominent Display */}
         <div className="mb-6">
           <WalletBalanceCard
-            balance={Number(wallet.balance)}
+            balance={balance}
             depositBalance={depositBalance}
-            roiTotal={Number(wallet.roiTotal)}
-            referralTotal={Number(wallet.referralTotal)}
+            roiTotal={roiTotal}
+            referralTotal={referralTotal}
           />
         </div>
 
@@ -63,7 +113,7 @@ export default async function DashboardPage() {
         <DashboardClient
           userName={user.name || 'User'}
           referralLink={referralLink}
-          availableBalance={Number(wallet.balance) + Number(depositBalance)}
+          availableBalance={balance + depositBalance}
         />
 
         {/* Active Investments */}

@@ -14,7 +14,7 @@ interface Investment {
   lastRoiAt: string | null;
   createdAt: string;
   user: {
-    email: string;
+    email: string | null;
     name: string | null;
     referralCode: string;
   };
@@ -65,7 +65,7 @@ export default function AdminInvestmentsView({ initialInvestments }: AdminInvest
                     <p className="font-medium text-gray-900">
                       {investment.user.name || 'N/A'}
                     </p>
-                    <p className="text-gray-700 text-xs font-medium">{investment.user.email}</p>
+                    <p className="text-gray-700 text-xs font-medium">{investment.user.email || 'N/A'}</p>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-sm font-semibold text-gray-900">

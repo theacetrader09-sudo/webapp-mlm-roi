@@ -20,13 +20,24 @@ export default function InvestmentsList() {
   useEffect(() => {
     async function fetchInvestments() {
       try {
-        const response = await fetch('/api/investments');
-        const data = await response.json();
-        if (data.investments) {
-          setInvestments(data.investments);
+        const response = await fetch('/api/investments', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.investments && Array.isArray(data.investments)) {
+            setInvestments(data.investments);
+          } else {
+            setInvestments([]);
+          }
+        } else {
+          console.error('Failed to fetch investments:', response.status);
+          setInvestments([]);
         }
       } catch (error) {
         console.error('Error fetching investments:', error);
+        setInvestments([]);
       } finally {
         setLoading(false);
       }
@@ -35,13 +46,16 @@ export default function InvestmentsList() {
     fetchInvestments();
   }, []);
 
-  if (loading) {
+  // Show data immediately, only show loading if we have no data
+  if (loading && investments.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
         <h3 className="text-xl font-semibold text-gray-900 mb-4">
           Active Investments
         </h3>
-        <p className="text-gray-700 font-medium">Loading...</p>
+        <div className="flex items-center justify-center py-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+        </div>
       </div>
     );
   }

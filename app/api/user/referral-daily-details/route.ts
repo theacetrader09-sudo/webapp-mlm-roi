@@ -53,30 +53,39 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Convert Decimal to number helper
+    const convertToNumber = (value: any): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'object' && value !== null) {
+        if ('toNumber' in value) return value.toNumber();
+        if ('toString' in value) return parseFloat(value.toString());
+      }
+      return parseFloat(String(value)) || 0;
+    };
+
     // Calculate expected daily commission from each investment
     const details = investments.map((investment) => {
-      const dailyROI = typeof investment.dailyROI === 'object' && 'toNumber' in investment.dailyROI
-        ? investment.dailyROI.toNumber()
-        : Number(investment.dailyROI);
+      const amount = convertToNumber(investment.amount);
+      const dailyROI = convertToNumber(investment.dailyROI);
       
-      const dailyROIAmount = (investment.amount * dailyROI) / 100;
+      const dailyROIAmount = (amount * dailyROI) / 100;
       // Level 1 commission is 10% of ROI
       const dailyCommission = (dailyROIAmount * 10) / 100;
 
       return {
         investmentId: investment.id,
-        investmentAmount: investment.amount,
+        investmentAmount: amount,
         packageName: investment.packageName,
         dailyROI: dailyROI,
-        dailyROIAmount: dailyROIAmount,
-        dailyCommission: dailyCommission,
+        dailyROIAmount: Number(dailyROIAmount.toFixed(2)),
+        dailyCommission: Number(dailyCommission.toFixed(2)),
         percent: 10, // Level 1
       };
     });
 
     return NextResponse.json({
       details,
-      totalDailyCommission: details.reduce((sum, d) => sum + d.dailyCommission, 0),
+      totalDailyCommission: Number(details.reduce((sum, d) => sum + d.dailyCommission, 0).toFixed(2)),
     });
   } catch (error) {
     console.error('Error fetching referral daily details:', error);

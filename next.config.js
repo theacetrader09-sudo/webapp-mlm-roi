@@ -12,7 +12,8 @@ const nextConfig = {
     ignoreBuildErrors: false, // Keep this false, only ignore ESLint
   },
   // Output configuration for Vercel
-  output: 'standalone',
+  // Removed 'standalone' to avoid potential Vercel issues
+  // output: 'standalone',
   // Disable static optimization for dynamic routes
   experimental: {
     serverActions: {

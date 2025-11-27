@@ -10,11 +10,27 @@ export default async function DashboardWithdrawPage() {
     redirect('/login');
   }
 
+  // Convert Decimal to number helper
+  const convertToNumber = (value: any): number => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'object' && value !== null) {
+      if ('toNumber' in value && typeof value.toNumber === 'function') {
+        return value.toNumber();
+      }
+      if ('toString' in value) {
+        return parseFloat(value.toString()) || 0;
+      }
+    }
+    return parseFloat(String(value)) || 0;
+  };
+
   const wallet = user.wallet || {
     balance: 0,
     roiTotal: 0,
     referralTotal: 0,
   };
+
+  const balance = convertToNumber(wallet.balance);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -33,7 +49,7 @@ export default async function DashboardWithdrawPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
-        <WithdrawForm currentBalance={wallet.balance} />
+        <WithdrawForm currentBalance={balance} />
       </main>
 
       {/* Bottom Navigation */}

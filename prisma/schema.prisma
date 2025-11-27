@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,6 +5,153 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String             @id @default(cuid())
+  name          String?
+  email         String             @unique
+  password      String
+  referralCode  String             @unique
+  referredBy    String?
+  role          UserRole           @default(USER)
+  createdAt     DateTime           @default(now())
+  deposits      Deposit[]
+  earnings      Earnings[]
+  transfersFrom InternalTransfer[] @relation("FromUser")
+  transfersTo   InternalTransfer[] @relation("ToUser")
+  investments   Investment[]
+  wallet        Wallet?
+  withdrawals   Withdrawal[]
+}
+
+model Wallet {
+  id             String             @id @default(cuid())
+  userId         String             @unique
+  balance        Decimal            @default(0) @db.Decimal(18, 2)
+  roiTotal       Decimal            @default(0) @db.Decimal(18, 2)
+  referralTotal  Decimal            @default(0) @db.Decimal(18, 2)
+  updatedAt      DateTime           @updatedAt
+  depositBalance Decimal            @default(0) @db.Decimal(18, 2)
+  earnings       Earnings[]
+  transfersFrom  InternalTransfer[] @relation("FromWallet")
+  transfersTo    InternalTransfer[] @relation("ToWallet")
+  investments    Investment[]
+  user           User               @relation(fields: [userId], references: [id])
+}
+
+model Package {
+  id           String       @id @default(cuid())
+  name         String
+  description  String?
+  minAmount    Decimal      @db.Decimal(18, 2)
+  maxAmount    Decimal      @db.Decimal(18, 2)
+  dailyROI     Decimal      @db.Decimal(5, 2)
+  durationDays Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  investments  Investment[]
+}
+
+model Investment {
+  id          String           @id @default(cuid())
+  userId      String
+  walletId    String
+  packageId   String?
+  packageName String
+  amount      Decimal          @db.Decimal(18, 2)
+  dailyROI    Decimal          @db.Decimal(5, 2)
+  startDate   DateTime         @default(now())
+  lastRoiAt   DateTime?
+  isActive    Boolean          @default(true)
+  status      InvestmentStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  package     Package?         @relation(fields: [packageId], references: [id])
+  user        User             @relation(fields: [userId], references: [id])
+  wallet      Wallet           @relation(fields: [walletId], references: [id])
+}
+
+model RoiCronRun {
+  id        String   @id @default(cuid())
+  runDate   DateTime @unique
+  createdAt DateTime @default(now())
+}
+
+model CronRunLog {
+  id                String   @id @default(cuid())
+  runId             String?
+  createdAt         DateTime @default(now())
+  processed         Int
+  skipped           Int
+  totalRoiPaid      Decimal  @db.Decimal(18, 2)
+  totalReferralPaid Decimal  @db.Decimal(18, 2)
+  failedItems       Json?
+  rawOutput         String?
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  amount    Decimal? @db.Decimal(18, 2)
+  before    Decimal? @db.Decimal(18, 2)
+  after     Decimal? @db.Decimal(18, 2)
+  meta      Json?
+  createdAt DateTime @default(now())
+}
+
+model Earnings {
+  id          String   @id @default(cuid())
+  userId      String
+  walletId    String
+  amount      Decimal  @db.Decimal(18, 2)
+  type        String
+  description String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  wallet      Wallet   @relation(fields: [walletId], references: [id])
+}
+
+model Deposit {
+  id        String        @id @default(cuid())
+  userId    String
+  amount    Decimal       @db.Decimal(18, 2)
+  txHash    String
+  status    DepositStatus @default(PENDING)
+  adminNote String?
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id])
+}
+
+model Withdrawal {
+  id           String           @id @default(cuid())
+  userId       String
+  amount       Decimal          @db.Decimal(18, 2)
+  walletBefore Decimal          @db.Decimal(18, 2)
+  walletAfter  Decimal          @db.Decimal(18, 2)
+  status       WithdrawalStatus @default(PENDING)
+  adminNote    String?
+  txReference  String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  user         User             @relation(fields: [userId], references: [id])
+}
+
+model InternalTransfer {
+  id           String   @id @default(cuid())
+  fromUserId   String
+  toUserId     String
+  fromWalletId String
+  toWalletId   String
+  amount       Decimal  @db.Decimal(18, 2)
+  transferType String
+  note         String?
+  createdAt    DateTime @default(now())
+  fromUser     User     @relation("FromUser", fields: [fromUserId], references: [id])
+  fromWallet   Wallet   @relation("FromWallet", fields: [fromWalletId], references: [id])
+  toUser       User     @relation("ToUser", fields: [toUserId], references: [id])
+  toWallet     Wallet   @relation("ToWallet", fields: [toWalletId], references: [id])
 }
 
 enum UserRole {
@@ -31,151 +175,4 @@ enum WithdrawalStatus {
   PENDING
   APPROVED
   REJECTED
-}
-
-model User {
-  id                String            @id @default(cuid())
-  name              String?
-  email             String            @unique
-  password          String
-  referralCode      String            @unique
-  referredBy        String? // stores referralCode of parent
-  role              UserRole          @default(USER)
-  createdAt         DateTime          @default(now())
-  wallet            Wallet?
-  investments       Investment[]
-  earnings          Earnings[]
-  deposits          Deposit[]
-  withdrawals       Withdrawal[]
-  transfersFrom     InternalTransfer[] @relation("FromUser")
-  transfersTo       InternalTransfer[] @relation("ToUser")
-}
-
-model Wallet {
-  id            String       @id @default(cuid())
-  userId        String       @unique
-  user          User         @relation(fields: [userId], references: [id])
-  balance       Float        @default(0) // Main wallet (for ROI, referrals, withdrawals)
-  depositBalance Float       @default(0) // Deposit wallet (for investments)
-  roiTotal      Float        @default(0)
-  referralTotal Float        @default(0)
-  updatedAt     DateTime     @updatedAt
-  investments   Investment[]
-  earnings      Earnings[]
-  transfersFrom InternalTransfer[] @relation("FromWallet")
-  transfersTo   InternalTransfer[] @relation("ToWallet")
-}
-
-model Package {
-  id           String       @id @default(cuid())
-  name         String
-  description  String?
-  minAmount    Float
-  maxAmount    Float
-  dailyROI     Float // store as percent (e.g., 1.5 = 1.5%)
-  durationDays Int? // optional duration
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  investments  Investment[]
-}
-
-model Investment {
-  id          String           @id @default(cuid())
-  userId      String
-  user        User             @relation(fields: [userId], references: [id])
-  walletId    String
-  wallet      Wallet           @relation(fields: [walletId], references: [id])
-  package     Package?         @relation(fields: [packageId], references: [id])
-  packageId   String?
-  packageName String // "Starter" | "Silver" | "Gold"
-  amount      Float
-  dailyROI    Decimal          @db.Decimal(5, 2) // e.g., 0.50, 1.00, 2.00
-  startDate   DateTime         @default(now())
-  lastRoiAt   DateTime? // last date/time ROI was applied for this investment
-  isActive    Boolean          @default(true)
-  status      InvestmentStatus @default(ACTIVE)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-}
-
-model RoiCronRun {
-  id        String   @id @default(cuid())
-  runDate   DateTime @unique // store start-of-day UTC for each run
-  createdAt DateTime @default(now())
-}
-
-model CronRunLog {
-  id                String   @id @default(cuid())
-  runId             String? // optional relation to RoiCronRun.id
-  createdAt         DateTime @default(now())
-  processed         Int
-  skipped           Int
-  totalRoiPaid      Float
-  totalReferralPaid Float
-  failedItems       Json? // array of { investmentId, error }
-  rawOutput         String? // optional full log
-}
-
-model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  action    String
-  amount    Float?
-  before    Float?
-  after     Float?
-  meta      Json?
-  createdAt DateTime @default(now())
-}
-
-model Earnings {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  walletId    String
-  wallet      Wallet   @relation(fields: [walletId], references: [id])
-  amount      Float
-  type        String // "roi", "referral", "bonus"
-  description String?
-  createdAt   DateTime @default(now())
-}
-
-model Deposit {
-  id        String        @id @default(cuid())
-  userId    String
-  user      User          @relation(fields: [userId], references: [id])
-  amount    Decimal       @db.Decimal(18, 2)
-  txHash    String
-  status    DepositStatus @default(PENDING)
-  adminNote String?
-  createdAt DateTime      @default(now())
-}
-
-model Withdrawal {
-  id           String           @id @default(cuid())
-  userId       String
-  user         User             @relation(fields: [userId], references: [id])
-  amount       Decimal          @db.Decimal(18, 2)
-  walletBefore Decimal          @db.Decimal(18, 2)
-  walletAfter  Decimal          @db.Decimal(18, 2)
-  status       WithdrawalStatus @default(PENDING)
-  adminNote    String?
-  txReference  String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-}
-
-model InternalTransfer {
-  id            String   @id @default(cuid())
-  fromUserId    String
-  fromUser      User     @relation("FromUser", fields: [fromUserId], references: [id])
-  toUserId      String
-  toUser        User     @relation("ToUser", fields: [toUserId], references: [id])
-  fromWalletId  String
-  fromWallet    Wallet   @relation("FromWallet", fields: [fromWalletId], references: [id])
-  toWalletId    String
-  toWallet      Wallet   @relation("ToWallet", fields: [toWalletId], references: [id])
-  amount        Decimal  @db.Decimal(18, 2)
-  transferType String   // "deposit_to_main" or "internal_transfer"
-  note          String?
-  createdAt     DateTime @default(now())
 }

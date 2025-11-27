@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { REFERRAL_COMMISSION_PERCENTS } from '@/lib/roi-config';
 import { createAuditLog } from '@/lib/audit';
+import { Decimal } from '@prisma/client/runtime/library';
 
 // Helper function to get start of day in UTC
 export function getStartOfDayUTC(date: Date = new Date()): Date {
@@ -18,6 +19,8 @@ export function wasRoiPaidToday(lastRoiAt: Date | null): boolean {
 }
 
 // Helper function to get upline referral chain
+// This function continues the chain even if intermediate users don't have wallets
+// It only stops when there's no more referredBy code
 async function getUplineChain(
   referralCode: string | null,
   maxLevels: number
@@ -27,23 +30,63 @@ async function getUplineChain(
   let level = 0;
 
   while (currentRefCode && level < maxLevels) {
-    const user = await prisma.user.findUnique({
-      where: { referralCode: currentRefCode },
-      include: { wallet: true },
-    });
+    try {
+      const user = await prisma.user.findUnique({
+        where: { referralCode: currentRefCode },
+        include: { wallet: true },
+      });
 
-    if (!user || !user.wallet) {
-      break; // No upline found, stop chain
+      // If user doesn't exist or has no wallet, continue to next level
+      // This allows the chain to continue even if intermediate users are missing
+      if (!user) {
+        // Try to find by case-insensitive match
+        const userCaseInsensitive = await prisma.user.findFirst({
+          where: {
+            referralCode: {
+              equals: currentRefCode,
+              mode: 'insensitive',
+            },
+          },
+          include: { wallet: true },
+        });
+
+        if (!userCaseInsensitive || !userCaseInsensitive.wallet) {
+          // No user found, stop chain
+          break;
+        }
+
+        // Use the found user
+        upline.push({
+          userId: userCaseInsensitive.id,
+          walletId: userCaseInsensitive.wallet.id,
+          referralCode: userCaseInsensitive.referralCode,
+        });
+
+        currentRefCode = userCaseInsensitive.referredBy;
+        level++;
+        continue;
+      }
+
+      if (!user.wallet) {
+        // User exists but no wallet - continue chain but don't add to upline
+        // This allows chain to continue even if intermediate user has no wallet
+        currentRefCode = user.referredBy;
+        level++;
+        continue;
+      }
+
+      upline.push({
+        userId: user.id,
+        walletId: user.wallet.id,
+        referralCode: user.referralCode,
+      });
+
+      currentRefCode = user.referredBy;
+      level++;
+    } catch (error) {
+      console.error(`Error getting upline for ${currentRefCode}:`, error);
+      break; // Stop on error
     }
-
-    upline.push({
-      userId: user.id,
-      walletId: user.wallet.id,
-      referralCode: user.referralCode,
-    });
-
-    currentRefCode = user.referredBy;
-    level++;
   }
 
   return upline;
@@ -52,8 +95,8 @@ async function getUplineChain(
 interface ProcessRoiResult {
   processed: number;
   skipped: number;
-  totalRoiPaid: number;
-  totalReferralPaid: number;
+  totalRoiPaid: Decimal;
+  totalReferralPaid: Decimal;
   failedItems: Array<{ investmentId: string; error: string }>;
 }
 
@@ -63,8 +106,8 @@ export async function processDailyRoi(
   const result: ProcessRoiResult = {
     processed: 0,
     skipped: 0,
-    totalRoiPaid: 0,
-    totalReferralPaid: 0,
+    totalRoiPaid: new Decimal(0),
+    totalReferralPaid: new Decimal(0),
     failedItems: [],
   };
 
@@ -102,14 +145,13 @@ export async function processDailyRoi(
       }
 
       // Use dynamic dailyROI from investment (Decimal type)
-      const dailyROIValue = typeof investment.dailyROI === 'object' && 'toNumber' in investment.dailyROI
-        ? investment.dailyROI.toNumber()
-        : Number(investment.dailyROI);
-      const roiAmount = (investment.amount * dailyROIValue) / 100;
+      const dailyROIValue = new Decimal(investment.dailyROI);
+      const investmentAmount = new Decimal(investment.amount);
+      const roiAmount = investmentAmount.mul(dailyROIValue).div(100);
 
       // Process ROI and referral commissions in a single transaction
       await prisma.$transaction(async (tx) => {
-        const beforeBalance = investment.wallet.balance;
+        const beforeBalance = new Decimal(investment.wallet.balance);
 
         // Update investment owner's wallet and create ROI earnings
         const updatedWallet = await tx.wallet.update({
@@ -155,19 +197,35 @@ export async function processDailyRoi(
         );
 
         // Distribute referral commissions
+        // Only pay commissions to users who have at least one active investment
         for (let level = 0; level < uplineChain.length && level < REFERRAL_COMMISSION_PERCENTS.length; level++) {
           const uplineUser = uplineChain[level];
-          const commissionPercent = REFERRAL_COMMISSION_PERCENTS[level];
-          const commissionAmount = (roiAmount * commissionPercent) / 100;
+          const commissionPercent = new Decimal(REFERRAL_COMMISSION_PERCENTS[level]);
+          const commissionAmount = roiAmount.mul(commissionPercent).div(100);
 
-          if (commissionAmount > 0) {
+          if (commissionAmount.gt(0)) {
+            // Check if upline user has at least one active investment
+            const activeInvestmentCount = await tx.investment.count({
+              where: {
+                userId: uplineUser.userId,
+                isActive: true,
+                status: 'ACTIVE',
+              },
+            });
+
+            // Skip this user if they don't have any active investments
+            // But continue to the next level (chain doesn't break)
+            if (activeInvestmentCount === 0) {
+              continue; // Skip this level, continue to next
+            }
+
             // Get upline wallet before update
             const uplineWallet = await tx.wallet.findUnique({
               where: { id: uplineUser.walletId },
               select: { balance: true },
             });
 
-            const beforeUplineBalance = uplineWallet?.balance || 0;
+            const beforeUplineBalance = new Decimal(uplineWallet?.balance || 0);
 
             // Update upline wallet
             const updatedUplineWallet = await tx.wallet.update({
@@ -203,11 +261,11 @@ export async function processDailyRoi(
               },
             });
 
-            result.totalReferralPaid += commissionAmount;
+            result.totalReferralPaid = result.totalReferralPaid.add(commissionAmount);
           }
         }
 
-        result.totalRoiPaid += roiAmount;
+        result.totalRoiPaid = result.totalRoiPaid.add(roiAmount);
       });
 
       result.processed++;

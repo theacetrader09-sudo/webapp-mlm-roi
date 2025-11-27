@@ -1,42 +1,64 @@
-import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { withAuth } from 'next-auth/middleware';
 
+// Handle referral links FIRST - before any auth middleware
+// This ensures mobile users go directly to signup, not any Telegram page
+function handleReferralRedirect(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+  const ref = req.nextUrl.searchParams.get('ref');
+  
+  // If ANY page has referral code, redirect to signup immediately
+  // This catches all cases including direct /signup?ref=CODE links
+  if (ref) {
+    const cleanRef = ref.trim().toUpperCase();
+    if (cleanRef && cleanRef.length > 0 && cleanRef.length <= 20) {
+      // If already on signup page, just allow it
+      if (path === '/signup') {
+        return null;
+      }
+      // Otherwise redirect to signup with referral code
+      const signupUrl = new URL('/signup', req.url);
+      signupUrl.searchParams.set('ref', cleanRef);
+      // Use 307 redirect (temporary redirect, preserves method) for better mobile compatibility
+      return NextResponse.redirect(signupUrl, 307);
+    }
+  }
+  
+  return null;
+}
+
+// Main middleware function
 export default withAuth(
   function middleware(req) {
     const path = req.nextUrl.pathname;
     const token = req.nextauth.token;
+    
+    // Handle referral redirects FIRST (before auth checks)
+    const referralRedirect = handleReferralRedirect(req);
+    if (referralRedirect) {
+      return referralRedirect;
+    }
     
     // Admin login page - allow access without auth
     if (path === '/admin/login') {
       return NextResponse.next();
     }
     
-    // Admin routes require ADMIN role (except /admin/login)
-    // Admin panel is completely hidden from regular users
+    // Admin routes require ADMIN role
     if (path.startsWith('/admin')) {
-      // Check if user has ADMIN role
       if (token?.role !== 'ADMIN') {
-        // Redirect non-admin users away from admin routes
-        // Return 404-like behavior to hide admin panel existence
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
       return NextResponse.next();
     }
 
-    // Regular user routes - ALLOW admins to access user dashboard for testing
-    // This allows both panels to be open simultaneously
-    if (path.startsWith('/dashboard')) {
-      // Allow both regular users and admins to access dashboard
-      // No redirect - let admins test both panels
-      return NextResponse.next();
-    }
-
+    // Dashboard and deposit routes - allow if authenticated
     return NextResponse.next();
   },
   {
     callbacks: {
       authorized: ({ token, req }) => {
-        // Allow access to public routes
         const path = req.nextUrl.pathname;
         const publicPaths = ['/', '/signup', '/login', '/admin/login'];
         const isPublicPath = publicPaths.includes(path) || path.startsWith('/api/');
@@ -45,7 +67,6 @@ export default withAuth(
           return true;
         }
 
-        // Require authentication for protected routes (like /dashboard, /admin)
         return !!token;
       },
     },
@@ -53,7 +74,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/deposit/:path*'],
-  // Exclude admin/login from authentication requirement
+  matcher: ['/', '/signup', '/login', '/dashboard/:path*', '/admin/:path*', '/deposit/:path*'],
 };
-

@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 interface TeamMember {
   id: string;
   name: string | null;
-  email: string;
+  email: string | null;
   referralCode: string;
   createdAt: Date;
   level: number;
@@ -59,7 +59,17 @@ async function buildReferralTree(
         },
       });
 
-      const totalInvestment = investments.reduce((sum, inv) => sum + inv.amount, 0);
+      // Convert Decimal to number helper
+      const convertToNumber = (value: any): number => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'object' && value !== null) {
+          if ('toNumber' in value) return value.toNumber();
+          if ('toString' in value) return parseFloat(value.toString());
+        }
+        return parseFloat(String(value)) || 0;
+      };
+
+      const totalInvestment = investments.reduce((sum, inv) => sum + convertToNumber(inv.amount), 0);
       const activeInvestments = investments.length;
 
       // Calculate earnings generated for the referrer from this user
@@ -77,7 +87,7 @@ async function buildReferralTree(
         },
       });
 
-      const totalEarningsGenerated = earnings.reduce((sum, e) => sum + e.amount, 0);
+      const totalEarningsGenerated = earnings.reduce((sum, e) => sum + convertToNumber(e.amount), 0);
 
       // Recursively get children
       const children = await buildReferralTree(
@@ -139,8 +149,8 @@ export async function GET(request: NextRequest) {
         };
 
         current.totalUsers += 1;
-        current.totalInvestments += member.totalInvestment;
-        current.totalEarnings += member.totalEarningsGenerated;
+        current.totalInvestments += Number(member.totalInvestment) || 0;
+        current.totalEarnings += Number(member.totalEarningsGenerated) || 0;
         if (member.isActive) {
           current.activeUsers += 1;
         }
@@ -155,9 +165,28 @@ export async function GET(request: NextRequest) {
 
     calculateStats(tree);
 
+    // Convert level stats to numbers
+    const levelStatsObj: Record<number, {
+      totalUsers: number;
+      totalInvestments: number;
+      totalEarnings: number;
+      activeUsers: number;
+    }> = {};
+    
+    // Convert Map to Array for iteration
+    const levelStatsArray = Array.from(levelStats.entries());
+    for (const [level, stats] of levelStatsArray) {
+      levelStatsObj[level] = {
+        totalUsers: stats.totalUsers,
+        totalInvestments: Number(stats.totalInvestments.toFixed(2)),
+        totalEarnings: Number(stats.totalEarnings.toFixed(2)),
+        activeUsers: stats.activeUsers,
+      };
+    }
+
     return NextResponse.json({
       tree,
-      levelStatistics: Object.fromEntries(levelStats),
+      levelStatistics: levelStatsObj,
       totalLevels: Math.max(...Array.from(levelStats.keys()), 0),
     });
   } catch (error) {

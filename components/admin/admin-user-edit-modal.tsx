@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 interface User {
   id: string;
   name: string | null;
-  email: string;
+  email: string | null; // Allow null email
   referralCode: string;
   role: string;
   wallet: {
@@ -29,7 +29,7 @@ export default function AdminUserEditModal({
 }: AdminUserEditModalProps) {
   const [formData, setFormData] = useState({
     name: user.name || '',
-    email: user.email,
+    email: user.email || '',
     referralCode: user.referralCode,
     role: user.role,
     password: '',
@@ -43,7 +43,7 @@ export default function AdminUserEditModal({
     if (open) {
       setFormData({
         name: user.name || '',
-        email: user.email,
+        email: user.email || '',
         referralCode: user.referralCode,
         role: user.role,
         password: '',

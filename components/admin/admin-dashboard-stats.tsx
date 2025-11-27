@@ -54,14 +54,14 @@ interface AdminDashboardStatsProps {
     amount: number;
     status: string;
     createdAt: string;
-    user: { email: string; name: string | null };
+    user: { email: string | null; name: string | null };
   }>;
   recentWithdrawals: Array<{
     id: string;
     amount: number;
     status: string;
     createdAt: string;
-    user: { email: string; name: string | null };
+    user: { email: string | null; name: string | null };
   }>;
 }
 

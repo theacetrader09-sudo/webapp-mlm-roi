@@ -42,8 +42,22 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Convert Decimal to number helper
+    const convertToNumber = (value: any): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'object' && value !== null) {
+        if ('toNumber' in value) return value.toNumber();
+        if ('toString' in value) return parseFloat(value.toString());
+      }
+      return parseFloat(String(value)) || 0;
+    };
+
     return NextResponse.json({
-      earnings,
+      earnings: earnings.map((earning) => ({
+        ...earning,
+        amount: convertToNumber(earning.amount),
+        createdAt: earning.createdAt.toISOString(),
+      })),
       total,
       limit,
       offset,

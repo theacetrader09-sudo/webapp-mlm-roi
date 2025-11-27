@@ -33,11 +33,21 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
+    // Convert Decimal to number helper
+    const convertToNumber = (value: any): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'object' && value !== null) {
+        if ('toNumber' in value) return value.toNumber();
+        if ('toString' in value) return parseFloat(value.toString());
+      }
+      return parseFloat(String(value)) || 0;
+    };
+
     return NextResponse.json({
       success: true,
       earnings: earnings.map((earning) => ({
         id: earning.id,
-        amount: earning.amount,
+        amount: convertToNumber(earning.amount),
         type: earning.type,
         description: earning.description,
         createdAt: earning.createdAt.toISOString(),

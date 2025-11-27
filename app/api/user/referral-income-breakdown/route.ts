@@ -35,11 +35,21 @@ export async function GET() {
       lastEarning: Date;
     }>();
 
-    // Get today's date range
+    // Convert Decimal to number helper
+    const convertToNumber = (value: any): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'object' && value !== null) {
+        if ('toNumber' in value) return value.toNumber();
+        if ('toString' in value) return parseFloat(value.toString());
+      }
+      return parseFloat(String(value)) || 0;
+    };
+
+    // Get today's date range (UTC)
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
     const endOfToday = new Date(startOfToday);
-    endOfToday.setDate(endOfToday.getDate() + 1);
+    endOfToday.setUTCDate(endOfToday.getUTCDate() + 1);
 
     for (const earning of referralEarnings) {
       // Extract referral code from description
@@ -55,13 +65,14 @@ export async function GET() {
           lastEarning: earning.createdAt,
         };
 
-        existing.totalEarnings += earning.amount;
+        const amount = convertToNumber(earning.amount);
+        existing.totalEarnings += amount;
         existing.transactions += 1;
 
         // Check if this earning is from today
         const earningDate = new Date(earning.createdAt);
         if (earningDate >= startOfToday && earningDate < endOfToday) {
-          existing.dailyEarnings += earning.amount;
+          existing.dailyEarnings += amount;
         }
 
         if (earning.createdAt > existing.lastEarning) {

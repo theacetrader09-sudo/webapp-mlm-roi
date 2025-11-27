@@ -7,7 +7,7 @@ import AdminUserDetailModal from './admin-user-detail-modal';
 interface User {
   id: string;
   name: string | null;
-  email: string;
+  email: string | null; // Allow null email
   referralCode: string;
   referredBy: string | null;
   role: string;
@@ -28,6 +28,7 @@ interface User {
 export default function AdminUsersView() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [page, setPage] = useState(1);
@@ -38,6 +39,7 @@ export default function AdminUsersView() {
 
   const fetchUsers = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -46,15 +48,60 @@ export default function AdminUsersView() {
       if (search) params.append('search', search);
       if (roleFilter !== 'ALL') params.append('role', roleFilter);
 
-      const response = await fetch(`/api/admin/users?${params}`);
+      const response = await fetch(`/api/admin/users?${params}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      
       const data = await response.json();
 
+      console.log('Admin Users View - API Response:', {
+        ok: response.ok,
+        status: response.status,
+        success: data.success,
+        usersCount: data.users?.length || 0,
+        total: data.pagination?.total || 0,
+        error: data.error,
+      });
+
+      if (!response.ok) {
+        const errorMsg = data.error || `Error ${response.status}`;
+        console.error('API Error:', errorMsg, data);
+        setError(errorMsg);
+        setUsers([]);
+        setTotalPages(0);
+        return;
+      }
+
       if (data.success) {
-        setUsers(data.users);
-        setTotalPages(data.pagination.totalPages);
+        const fetchedUsers = data.users || [];
+        console.log('Users fetched successfully:', fetchedUsers.length, 'users');
+        console.log('Sample user data:', fetchedUsers.length > 0 ? fetchedUsers[0] : 'No users');
+        console.log('Pagination:', data.pagination);
+        
+        // Ensure we have valid user data
+        const validUsers = fetchedUsers.filter((u: any) => u && u.id);
+        console.log('Valid users after filtering:', validUsers.length);
+        
+        if (validUsers.length === 0 && fetchedUsers.length > 0) {
+          console.error('All users were filtered out!', fetchedUsers);
+          setError('Users data format is invalid. Please check console for details.');
+        }
+        
+        setUsers(validUsers);
+        setTotalPages(data.pagination?.totalPages || 0);
+      } else {
+        console.error('API returned success=false:', data);
+        setError(data.error || 'Failed to fetch users');
+        setUsers([]);
+        setTotalPages(0);
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       console.error('Error fetching users:', error);
+      setError(`Failed to fetch users: ${errorMsg}`);
+      setUsers([]);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
@@ -117,6 +164,27 @@ export default function AdminUsersView() {
 
   return (
     <div className="space-y-6">
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-red-800 font-medium">{error}</p>
+            <button
+              onClick={() => {
+                setError(null);
+                fetchUsers();
+              }}
+              className="ml-auto text-red-600 hover:text-red-800 underline text-sm"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -163,7 +231,23 @@ export default function AdminUsersView() {
             <p className="mt-4 text-gray-600">Loading users...</p>
           </div>
         ) : users.length === 0 ? (
-          <div className="p-12 text-center text-gray-500">No users found</div>
+          <div className="p-12 text-center">
+            <div className="text-gray-500 mb-4">No users found</div>
+            {error && (
+              <div className="text-sm text-red-600 mt-2">
+                {error}
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setError(null);
+                fetchUsers();
+              }}
+              className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -198,7 +282,9 @@ export default function AdminUsersView() {
                           <div className="text-sm font-medium text-gray-900">
                             {user.name || 'No name'}
                           </div>
-                          <div className="text-sm text-gray-700 font-medium">{user.email}</div>
+                          <div className="text-sm text-gray-700 font-medium">
+                            {user.email || 'No email'}
+                          </div>
                           <div className="text-xs text-gray-600 font-medium">
                             Joined: {new Date(user.createdAt).toLocaleDateString()}
                           </div>

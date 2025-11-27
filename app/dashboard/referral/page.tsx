@@ -30,7 +30,7 @@ async function getTeamMembers(userReferralCode: string) {
     const teamMap = new Map<string, {
       id: string;
       name: string | null;
-      email: string;
+      email: string | null;
       referralCode: string;
       createdAt: Date;
     }>();
@@ -59,7 +59,14 @@ async function getTeamMembers(userReferralCode: string) {
 
         for (const referral of referrals) {
           teamMembers.add(referral.id);
-          teamMap.set(referral.id, referral);
+          // Explicitly type the referral to match the Map type
+          teamMap.set(referral.id, {
+            id: referral.id,
+            name: referral.name,
+            email: referral.email,
+            referralCode: referral.referralCode,
+            createdAt: referral.createdAt,
+          });
           nextLevel.push(referral.referralCode);
         }
       }
@@ -111,11 +118,11 @@ export default async function ReferralPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24">
         {/* Referral Link Card */}
-        <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-xl p-6 text-white shadow-xl mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
+        <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-xl p-4 sm:p-6 text-white shadow-xl mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex-1 w-full min-w-0">
               <p className="text-purple-200 text-sm mb-2">Your Referral Link</p>
-              <code className="text-sm font-mono bg-white/20 px-3 py-2 rounded-lg block break-all">
+              <code className="text-xs sm:text-sm font-mono bg-white/20 px-3 py-2 rounded-lg block break-all overflow-wrap-anywhere">
                 {referralLink}
               </code>
             </div>
@@ -178,19 +185,19 @@ export default async function ReferralPage() {
         </div>
 
         {/* Referral Tree */}
-        <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-gray-100 mb-6 overflow-x-auto">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">
             Referral Tree
           </h2>
           <ReferralTreeEnhanced />
         </div>
 
         {/* Referral Income Breakdown */}
-        <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-gray-100">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">
             Referral Income Breakdown
           </h2>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-xs sm:text-sm text-gray-600 mb-4">
             Click on any user to see their daily ROI contribution to your earnings
           </p>
           <ReferralIncomeBreakdown />

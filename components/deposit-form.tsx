@@ -33,13 +33,22 @@ export default function DepositForm({ depositAddress }: DepositFormProps) {
   const fetchHistory = async () => {
     try {
       setLoadingHistory(true);
-      const response = await fetch('/api/deposit/history');
-      const data = await response.json();
-      if (data.success) {
-        setDeposits(data.deposits);
+      const response = await fetch('/api/deposit/history', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.deposits)) {
+          setDeposits(data.deposits);
+        } else {
+          setDeposits([]);
+        }
+      } else {
+        setDeposits([]);
       }
     } catch {
-      // Error fetching deposit history - continue
+      setDeposits([]);
     } finally {
       setLoadingHistory(false);
     }
@@ -67,6 +76,7 @@ export default function DepositForm({ depositAddress }: DepositFormProps) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           amount: parseFloat(amount),
           txHash: txHash.trim(),

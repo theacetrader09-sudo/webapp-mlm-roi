@@ -71,8 +71,8 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800 px-4 py-12">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800 px-4 py-6 sm:py-12">
+      <div className="max-w-md w-full space-y-6 sm:space-y-8">
         {/* Logo */}
         <div className="flex justify-center">
           <div className="relative">
