@@ -60,14 +60,14 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate totals
-    const totalRoiPaid = roiEarnings.reduce((sum, e) => sum + e.amount, 0);
-    const totalReferralPaid = referralEarnings.reduce((sum, e) => sum + e.amount, 0);
+    const totalRoiPaid = roiEarnings.reduce((sum, e) => sum + Number(e.amount), 0);
+    const totalReferralPaid = referralEarnings.reduce((sum, e) => sum + Number(e.amount), 0);
 
     // Get top 10 users by referral earnings
     const referralByUser = new Map<string, number>();
     referralEarnings.forEach((earning) => {
       const current = referralByUser.get(earning.userId) || 0;
-      referralByUser.set(earning.userId, current + earning.amount);
+      referralByUser.set(earning.userId, current + Number(earning.amount));
     });
 
     const topReferralEarners = Array.from(referralByUser.entries())
@@ -96,10 +96,10 @@ export async function GET(request: NextRequest) {
         amount: earner.amount,
         user: user
           ? {
-              name: user.name,
-              email: user.email,
-              referralCode: user.referralCode,
-            }
+            name: user.name,
+            email: user.email,
+            referralCode: user.referralCode,
+          }
           : null,
       };
     });
