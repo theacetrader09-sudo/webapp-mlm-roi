@@ -150,7 +150,7 @@ export async function PATCH(
     if (balance !== undefined || depositBalance !== undefined) {
       const walletUpdate: any = {};
       if (balance !== undefined) {
-        const oldBalance = currentUser.wallet?.balance || 0;
+        const oldBalance = Number(currentUser.wallet?.balance || 0);
         walletUpdate.balance = balance;
         // Create audit log
         await createAuditLog({
@@ -167,7 +167,7 @@ export async function PATCH(
         });
       }
       if (depositBalance !== undefined) {
-        const oldDepositBalance = currentUser.wallet?.depositBalance || 0;
+        const oldDepositBalance = Number(currentUser.wallet?.depositBalance || 0);
         walletUpdate.depositBalance = depositBalance;
         // Create audit log
         await createAuditLog({
