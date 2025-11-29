@@ -23,8 +23,8 @@ export default async function AdminCronPage() {
     createdAt: log.createdAt.toISOString(),
     processed: log.processed,
     skipped: log.skipped,
-    totalRoiPaid: log.totalRoiPaid,
-    totalReferralPaid: log.totalReferralPaid,
+    totalRoiPaid: Number(log.totalRoiPaid),
+    totalReferralPaid: Number(log.totalReferralPaid),
     failedItems: log.failedItems as Array<{ investmentId: string; error: string }> | null,
   }));
 
