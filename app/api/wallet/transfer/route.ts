@@ -114,8 +114,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if sender has sufficient balance (check both deposit and main balance)
-    const senderDepositBalance = (senderWallet as { depositBalance?: number }).depositBalance || 0;
-    const availableBalance = senderDepositBalance + (senderWallet.balance || 0);
+    const senderDepositBalance = Number(senderWallet.depositBalance || 0);
+    const availableBalance = senderDepositBalance + Number(senderWallet.balance || 0);
     if (availableBalance < amount) {
       return NextResponse.json(
         { error: 'Insufficient balance' },
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Update recipient wallet (add to deposit balance)
-      const recipientDepositBalance = (recipientWallet as { depositBalance?: number }).depositBalance || 0;
+      const recipientDepositBalance = Number(recipientWallet.depositBalance || 0);
       const beforeRecipientBalance = recipientDepositBalance;
       const updatedRecipientWallet = await tx.wallet.update({
         where: { id: recipientWallet.id },
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
         action: 'INTERNAL_TRANSFER_SENT',
         amount: amount,
         before: availableBalance,
-        after: ((updatedSenderWallet as { depositBalance?: number }).depositBalance || 0) + (updatedSenderWallet.balance || 0),
+        after: Number(updatedSenderWallet.depositBalance || 0) + Number(updatedSenderWallet.balance || 0),
         meta: {
           toUserId: toUserId,
           toUserEmail: recipient.email,
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
         action: 'INTERNAL_TRANSFER_RECEIVED',
         amount: amount,
         before: beforeRecipientBalance,
-        after: (updatedRecipientWallet as { depositBalance?: number }).depositBalance || 0,
+        after: Number(updatedRecipientWallet.depositBalance || 0),
         meta: {
           fromUserId: user.id,
           fromUserEmail: user.email,
