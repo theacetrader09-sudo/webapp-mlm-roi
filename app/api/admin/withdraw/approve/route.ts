@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         ? withdrawal.amount.toNumber()
         : Number(withdrawal.amount);
 
-      const currentBalance = wallet.balance;
+      const currentBalance = Number(wallet.balance);
 
       // Re-check balance inside transaction
       if (currentBalance < withdrawalAmount) {
