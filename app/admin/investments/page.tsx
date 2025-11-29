@@ -41,7 +41,7 @@ export default async function AdminInvestmentsPage() {
   const investmentsWithNumbers = investments.map((inv) => ({
     id: inv.id,
     userId: inv.userId,
-    amount: inv.amount,
+    amount: Number(inv.amount),
     packageName: inv.packageName,
     dailyROI: typeof inv.dailyROI === 'object' && 'toNumber' in inv.dailyROI
       ? inv.dailyROI.toNumber()
