@@ -19,13 +19,65 @@ function SignupForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [referralValidation, setReferralValidation] = useState<{
+    status: 'idle' | 'checking' | 'valid' | 'invalid';
+    message: string;
+  }>({ status: 'idle', message: '' });
 
   // Update referral code when URL changes
   useEffect(() => {
     if (urlReferralCode && !formData.referralCode) {
       setFormData(prev => ({ ...prev, referralCode: urlReferralCode.toUpperCase() }));
+      // Validate the URL referral code
+      validateReferralCode(urlReferralCode.toUpperCase());
     }
   }, [urlReferralCode, formData.referralCode]);
+
+  // Validate referral code in real-time
+  const validateReferralCode = async (code: string) => {
+    if (!code || code.trim().length === 0) {
+      setReferralValidation({ status: 'idle', message: '' });
+      return;
+    }
+
+    const cleanCode = code.trim().toUpperCase();
+    if (cleanCode.length > 20) {
+      setReferralValidation({ status: 'invalid', message: 'Referral code too long' });
+      return;
+    }
+
+    setReferralValidation({ status: 'checking', message: 'Validating...' });
+
+    try {
+      const response = await fetch(`/api/validate-referral?code=${encodeURIComponent(cleanCode)}`);
+      const data = await response.json();
+
+      if (data.valid) {
+        setReferralValidation({
+          status: 'valid',
+          message: data.referrerName ? `You'll join ${data.referrerName}'s team!` : 'Valid referral code!'
+        });
+      } else {
+        setReferralValidation({ status: 'invalid', message: 'Referral code not found' });
+      }
+    } catch (err) {
+      // Don't show error for validation - just mark as idle
+      setReferralValidation({ status: 'idle', message: '' });
+    }
+  };
+
+  // Debounce referral code validation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.referralCode && formData.referralCode.trim().length > 0) {
+        validateReferralCode(formData.referralCode);
+      } else {
+        setReferralValidation({ status: 'idle', message: '' });
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.referralCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,8 +116,8 @@ function SignupForm() {
           name: formData.name?.trim() || null,
           email: formData.email.trim().toLowerCase(),
           password: formData.password,
-          referralCode: formData.referralCode && formData.referralCode.trim() 
-            ? formData.referralCode.trim().toUpperCase() 
+          referralCode: formData.referralCode && formData.referralCode.trim()
+            ? formData.referralCode.trim().toUpperCase()
             : null,
         }),
         credentials: 'include',
@@ -90,7 +142,7 @@ function SignupForm() {
       if (!response.ok) {
         const errorMsg = data?.error || `Server error (${response.status}). Please try again.`;
         console.error('Signup failed:', errorMsg, data);
-        
+
         // Provide user-friendly error messages
         if (response.status === 500) {
           setError('Server error. Please try again in a moment. If the problem persists, contact support.');
@@ -257,14 +309,40 @@ function SignupForm() {
                 type="text"
                 value={formData.referralCode}
                 onChange={(e) => setFormData({ ...formData, referralCode: e.target.value.toUpperCase() })}
-                className="block w-full pl-10 pr-3 py-3 text-base bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent uppercase"
+                className={`block w-full pl-10 pr-10 py-3 text-base bg-white/10 backdrop-blur-sm border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent uppercase ${referralValidation.status === 'valid' ? 'border-green-500 focus:ring-green-400' :
+                    referralValidation.status === 'invalid' ? 'border-red-500 focus:ring-red-400' :
+                      'border-white/20 focus:ring-purple-400'
+                  }`}
                 placeholder="Enter referral code (optional)"
                 maxLength={20}
               />
+              {/* Validation indicator */}
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                {referralValidation.status === 'checking' && (
+                  <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {referralValidation.status === 'valid' && (
+                  <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {referralValidation.status === 'invalid' && (
+                  <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+              </div>
             </div>
-            {formData.referralCode && (
-              <p className="text-xs text-green-300 mt-1">
-                You&apos;ll be part of {formData.referralCode}&apos;s team!
+            {/* Validation message */}
+            {formData.referralCode && referralValidation.message && (
+              <p className={`text-xs mt-1 ${referralValidation.status === 'valid' ? 'text-green-300' :
+                  referralValidation.status === 'invalid' ? 'text-red-300' :
+                    'text-gray-300'
+                }`}>
+                {referralValidation.message}
               </p>
             )}
           </div>
@@ -397,7 +475,7 @@ function SignupForm() {
 
 export default function SignupPage() {
   return (
-    <Suspense 
+    <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800">
           <div className="text-center text-white">
