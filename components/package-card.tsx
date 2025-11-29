@@ -98,14 +98,14 @@ export default function PackageCard({ packageInfo, depositBalance }: PackageCard
         <div className="mb-6">
           <div className="flex items-baseline gap-2 mb-4">
             <span className="text-3xl font-bold text-gray-900">
-              {packageInfo.dailyROI}%
+              {packageInfo.dailyROI.toNumber()}%
             </span>
             <span className="text-gray-600">daily ROI</span>
           </div>
           <div className={`${colors.bg} ${colors.border} border rounded-lg p-4 mb-4`}>
             <p className="text-xs text-gray-600 mb-1">Investment Range</p>
             <p className="text-lg font-semibold text-gray-900">
-              ${packageInfo.minAmount.toLocaleString()} - ${packageInfo.maxAmount.toLocaleString()}
+              ${packageInfo.minAmount.toNumber().toLocaleString()} - ${packageInfo.maxAmount.toNumber().toLocaleString()}
             </p>
           </div>
         </div>

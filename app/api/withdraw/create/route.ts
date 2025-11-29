@@ -58,13 +58,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const currentBalance = wallet.balance;
+    const currentBalance = Number(wallet.balance);
     const withdrawalAmount = new Decimal(amount);
 
     // Check sufficient balance
     if (currentBalance < amount) {
       return NextResponse.json(
-        { 
+        {
           error: 'Insufficient balance',
           currentBalance,
           requestedAmount: amount,

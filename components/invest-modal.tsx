@@ -22,7 +22,7 @@ export default function InvestModal({
   const [error, setError] = useState('');
 
   const detectedPackage = amount ? getPackageByAmount(parseFloat(amount) || 0) : null;
-  const dailyROI = detectedPackage ? detectedPackage.dailyROI : 0;
+  const dailyROI = detectedPackage ? detectedPackage.dailyROI.toNumber() : 0;
   const expectedDailyReturn = amount && detectedPackage
     ? ((parseFloat(amount) || 0) * dailyROI) / 100
     : 0;
@@ -156,21 +156,21 @@ export default function InvestModal({
                       : 'border-gray-200 hover:border-gray-300'
                   )}
                   onClick={() => {
-                    const midAmount = (pkg.minAmount + pkg.maxAmount) / 2;
+                    const midAmount = (pkg.minAmount.toNumber() + pkg.maxAmount.toNumber()) / 2;
                     handleAmountChange(midAmount.toString());
                   }}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-semibold text-gray-900">{pkg.name}</h3>
                     <span className="text-sm font-medium text-indigo-600">
-                      {pkg.dailyROI}% daily
+                      {pkg.dailyROI.toNumber()}% daily
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">
-                    ${pkg.minAmount.toLocaleString()} - ${pkg.maxAmount.toLocaleString()}
+                    ${pkg.minAmount.toNumber().toLocaleString()} - ${pkg.maxAmount.toNumber().toLocaleString()}
                   </p>
                   <p className="text-xs text-gray-500">
-                    Daily ROI: {pkg.dailyROI}%
+                    Daily ROI: {pkg.dailyROI.toNumber()}%
                   </p>
                 </div>
               ))}

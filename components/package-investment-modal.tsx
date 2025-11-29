@@ -33,9 +33,9 @@ export default function PackageInvestmentModal({
   }, [isOpen, packageInfo]);
 
   const numAmount = parseFloat(amount) || 0;
-  const expectedDailyReturn = (numAmount * packageInfo.dailyROI) / 100;
+  const expectedDailyReturn = (numAmount * packageInfo.dailyROI.toNumber()) / 100;
   const hasInsufficientBalance = numAmount > depositBalance;
-  const isAmountValid = numAmount >= packageInfo.minAmount && numAmount <= packageInfo.maxAmount;
+  const isAmountValid = numAmount >= packageInfo.minAmount.toNumber() && numAmount <= packageInfo.maxAmount.toNumber();
 
   const handleAmountChange = (value: string) => {
     setAmount(value);
@@ -48,13 +48,13 @@ export default function PackageInvestmentModal({
         return;
       }
 
-      if (num < packageInfo.minAmount) {
-        setError(`Minimum investment is $${packageInfo.minAmount.toLocaleString()}`);
+      if (num < packageInfo.minAmount.toNumber()) {
+        setError(`Minimum investment is $${packageInfo.minAmount.toNumber().toLocaleString()}`);
         return;
       }
 
-      if (num > packageInfo.maxAmount) {
-        setError(`Maximum investment is $${packageInfo.maxAmount.toLocaleString()}`);
+      if (num > packageInfo.maxAmount.toNumber()) {
+        setError(`Maximum investment is $${packageInfo.maxAmount.toNumber().toLocaleString()}`);
         return;
       }
     }
@@ -67,9 +67,9 @@ export default function PackageInvestmentModal({
     }
 
     const numAmount = parseFloat(amount);
-    
-    if (numAmount < packageInfo.minAmount || numAmount > packageInfo.maxAmount) {
-      setError(`Amount must be between $${packageInfo.minAmount.toLocaleString()} and $${packageInfo.maxAmount.toLocaleString()}`);
+
+    if (numAmount < packageInfo.minAmount.toNumber() || numAmount > packageInfo.maxAmount.toNumber()) {
+      setError(`Amount must be between $${packageInfo.minAmount.toNumber().toLocaleString()} and $${packageInfo.maxAmount.toNumber().toLocaleString()}`);
       return;
     }
 
@@ -167,12 +167,12 @@ export default function PackageInvestmentModal({
             </div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-gray-700">Daily ROI</span>
-              <span className="text-lg font-bold text-purple-600">{packageInfo.dailyROI}%</span>
+              <span className="text-lg font-bold text-purple-600">{packageInfo.dailyROI.toNumber()}%</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-700">Investment Range</span>
               <span className="text-sm font-semibold text-gray-900">
-                ${packageInfo.minAmount.toLocaleString()} - ${packageInfo.maxAmount.toLocaleString()}
+                ${packageInfo.minAmount.toNumber().toLocaleString()} - ${packageInfo.maxAmount.toNumber().toLocaleString()}
               </span>
             </div>
           </div>
@@ -208,21 +208,20 @@ export default function PackageInvestmentModal({
             <input
               id="amount"
               type="number"
-              min={packageInfo.minAmount}
-              max={packageInfo.maxAmount}
+              min={packageInfo.minAmount.toNumber()}
+              max={packageInfo.maxAmount.toNumber()}
               step="0.01"
               value={amount}
               onChange={(e) => handleAmountChange(e.target.value)}
-              placeholder={`Enter amount (${packageInfo.minAmount.toLocaleString()} - ${packageInfo.maxAmount.toLocaleString()})`}
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 ${
-                hasInsufficientBalance || !isAmountValid
+              placeholder={`Enter amount (${packageInfo.minAmount.toNumber().toLocaleString()} - ${packageInfo.maxAmount.toNumber().toLocaleString()})`}
+              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 ${hasInsufficientBalance || !isAmountValid
                   ? 'border-red-300 focus:ring-red-500'
                   : 'border-gray-300 focus:ring-purple-500'
-              }`}
+                }`}
             />
             {!isAmountValid && amount && (
               <p className="text-xs text-red-600 mt-1">
-                Amount must be between ${packageInfo.minAmount.toLocaleString()} and ${packageInfo.maxAmount.toLocaleString()}
+                Amount must be between ${packageInfo.minAmount.toNumber().toLocaleString()} and ${packageInfo.maxAmount.toNumber().toLocaleString()}
               </p>
             )}
           </div>
@@ -237,7 +236,7 @@ export default function PackageInvestmentModal({
                 </span>
               </div>
               <p className="text-xs text-gray-700 font-medium">
-                Based on {packageInfo.dailyROI}% daily ROI
+                Based on {packageInfo.dailyROI.toNumber()}% daily ROI
               </p>
             </div>
           )}
