@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         const dailyROIValue = typeof investment.dailyROI === 'object' && 'toNumber' in investment.dailyROI
           ? investment.dailyROI.toNumber()
           : Number(investment.dailyROI);
-        const roiAmount = (investment.amount * dailyROIValue) / 100;
+        const roiAmount = (Number(investment.amount) * dailyROIValue) / 100;
 
         // Process in transaction
         await prisma.$transaction(async (tx) => {
