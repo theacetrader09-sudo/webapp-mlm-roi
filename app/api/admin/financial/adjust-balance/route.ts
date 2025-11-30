@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/prisma';
 import { createAuditLog } from '@/lib/audit';
+import { Decimal } from '@prisma/client/runtime/library';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,18 +43,22 @@ export async function POST(request: NextRequest) {
       wallet = await prisma.wallet.create({
         data: {
           userId: user.id,
-          balance: 0,
-          depositBalance: 0,
-          roiTotal: 0,
-          referralTotal: 0,
+          balance: new Decimal(0),
+          depositBalance: new Decimal(0),
+          roiTotal: new Decimal(0),
+          referralTotal: new Decimal(0),
         },
       });
     }
 
-    const oldBalance = type === 'balance' ? wallet.balance : wallet.depositBalance;
-    const newBalance = oldBalance + amount;
+    const amountDecimal = new Decimal(amount);
+    const oldBalance = type === 'balance'
+      ? new Decimal(wallet.balance)
+      : new Decimal(wallet.depositBalance);
 
-    if (newBalance < 0) {
+    const newBalance = oldBalance.add(amountDecimal);
+
+    if (newBalance.isNegative()) {
       return NextResponse.json(
         { error: 'Insufficient balance' },
         { status: 400 }
@@ -72,7 +77,7 @@ export async function POST(request: NextRequest) {
     await createAuditLog({
       userId,
       action: `ADMIN_${type.toUpperCase()}_ADJUST`,
-      amount: Math.abs(amount),
+      amount: amountDecimal.abs(),
       before: oldBalance,
       after: newBalance,
       meta: {
@@ -87,7 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Balance adjusted successfully',
-      newBalance,
+      newBalance: newBalance.toNumber(),
     });
   } catch (error) {
     console.error('Error adjusting balance:', error);

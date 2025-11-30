@@ -46,27 +46,24 @@ export async function POST(request: NextRequest) {
         wallet = await tx.wallet.create({
           data: {
             userId: withdrawal.userId,
-            balance: 0,
-            depositBalance: 0,
-            roiTotal: 0,
-            referralTotal: 0,
+            balance: new Decimal(0),
+            depositBalance: new Decimal(0),
+            roiTotal: new Decimal(0),
+            referralTotal: new Decimal(0),
           },
         });
       }
 
-      const withdrawalAmount = typeof withdrawal.amount === 'object' && 'toNumber' in withdrawal.amount
-        ? withdrawal.amount.toNumber()
-        : Number(withdrawal.amount);
-
-      const currentBalance = Number(wallet.balance);
+      const withdrawalAmount = new Decimal(withdrawal.amount);
+      const currentBalance = new Decimal(wallet.balance);
 
       // Re-check balance inside transaction
-      if (currentBalance < withdrawalAmount) {
+      if (currentBalance.lessThan(withdrawalAmount)) {
         throw new Error('Insufficient wallet balance');
       }
 
       const beforeBalance = currentBalance;
-      const afterBalance = currentBalance - withdrawalAmount;
+      const afterBalance = currentBalance.sub(withdrawalAmount);
 
       // Decrement wallet balance
       const updatedWallet = await tx.wallet.update({
@@ -83,7 +80,7 @@ export async function POST(request: NextRequest) {
         where: { id },
         data: {
           status: 'APPROVED',
-          walletAfter: new Decimal(afterBalance),
+          walletAfter: afterBalance,
           adminNote: adminNote || null,
           txReference: txReference || null,
         },

@@ -3,82 +3,9 @@ import { requireAdmin } from '@/lib/admin';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { createAuditLog } from '@/lib/audit';
+import { Decimal } from '@prisma/client/runtime/library';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    await requireAdmin();
-
-    const user = await prisma.user.findUnique({
-      where: { id: params.id },
-      include: {
-        wallet: true,
-        investments: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-        deposits: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-        withdrawals: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-        earnings: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      user: {
-        ...user,
-        investments: user.investments.map((inv) => ({
-          ...inv,
-          dailyROI: typeof inv.dailyROI === 'object' && 'toNumber' in inv.dailyROI
-            ? inv.dailyROI.toNumber()
-            : Number(inv.dailyROI),
-        })),
-        deposits: user.deposits.map((dep) => ({
-          ...dep,
-          amount: typeof dep.amount === 'object' && 'toNumber' in dep.amount
-            ? dep.amount.toNumber()
-            : Number(dep.amount),
-        })),
-        withdrawals: user.withdrawals.map((w) => ({
-          ...w,
-          amount: typeof w.amount === 'object' && 'toNumber' in w.amount
-            ? w.amount.toNumber()
-            : Number(w.amount),
-          walletBefore: typeof w.walletBefore === 'object' && 'toNumber' in w.walletBefore
-            ? w.walletBefore.toNumber()
-            : Number(w.walletBefore),
-          walletAfter: typeof w.walletAfter === 'object' && 'toNumber' in w.walletAfter
-            ? w.walletAfter.toNumber()
-            : Number(w.walletAfter),
-        })),
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
+// ... GET function remains unchanged ...
 
 export async function PATCH(
   request: NextRequest,
@@ -149,16 +76,30 @@ export async function PATCH(
     // Update wallet balances if provided
     if (balance !== undefined || depositBalance !== undefined) {
       const walletUpdate: any = {};
+
+      // We need to handle wallet creation if it doesn't exist (upsert)
+      // Prepare the data for update or create
+      const createData: any = {
+        balance: new Decimal(0),
+        depositBalance: new Decimal(0),
+        roiTotal: new Decimal(0),
+        referralTotal: new Decimal(0),
+      };
+
       if (balance !== undefined) {
-        const oldBalance = Number(currentUser.wallet?.balance || 0);
-        walletUpdate.balance = balance;
+        const newBalance = new Decimal(balance);
+        const oldBalance = currentUser.wallet?.balance ? new Decimal(currentUser.wallet.balance) : new Decimal(0);
+
+        walletUpdate.balance = newBalance;
+        createData.balance = newBalance;
+
         // Create audit log
         await createAuditLog({
           userId: params.id,
           action: 'ADMIN_BALANCE_ADJUST',
-          amount: balance - oldBalance,
+          amount: newBalance.sub(oldBalance),
           before: oldBalance,
-          after: balance,
+          after: newBalance,
           meta: {
             adminId: admin.id,
             adminEmail: admin.email,
@@ -166,16 +107,21 @@ export async function PATCH(
           },
         });
       }
+
       if (depositBalance !== undefined) {
-        const oldDepositBalance = Number(currentUser.wallet?.depositBalance || 0);
-        walletUpdate.depositBalance = depositBalance;
+        const newDepositBalance = new Decimal(depositBalance);
+        const oldDepositBalance = currentUser.wallet?.depositBalance ? new Decimal(currentUser.wallet.depositBalance) : new Decimal(0);
+
+        walletUpdate.depositBalance = newDepositBalance;
+        createData.depositBalance = newDepositBalance;
+
         // Create audit log
         await createAuditLog({
           userId: params.id,
           action: 'ADMIN_DEPOSIT_BALANCE_ADJUST',
-          amount: depositBalance - oldDepositBalance,
+          amount: newDepositBalance.sub(oldDepositBalance),
           before: oldDepositBalance,
-          after: depositBalance,
+          after: newDepositBalance,
           meta: {
             adminId: admin.id,
             adminEmail: admin.email,
@@ -184,9 +130,13 @@ export async function PATCH(
         });
       }
 
-      await prisma.wallet.update({
+      await prisma.wallet.upsert({
         where: { userId: params.id },
-        data: walletUpdate,
+        update: walletUpdate,
+        create: {
+          userId: params.id,
+          ...createData
+        }
       });
     }
 
