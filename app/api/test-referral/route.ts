@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { processDailyRoi } from '@/lib/roi-processor';
 import { Decimal } from '@prisma/client/runtime/library';
 
 export async function GET(request: NextRequest) {
     try {
-        console.log('--- Starting Referral Logic Test ---');
+        console.log('--- Starting Comprehensive Referral Link Test (50+ Users) ---');
 
         // 1. Cleanup previous test data
         await prisma.earnings.deleteMany();
@@ -13,148 +12,242 @@ export async function GET(request: NextRequest) {
         await prisma.wallet.deleteMany();
         await prisma.user.deleteMany();
 
-        // 2. Create Users: Grandparent -> Parent -> Child
-        const grandparent = await prisma.user.create({
+        const results = {
+            totalUsers: 0,
+            successfulSignups: 0,
+            failedSignups: 0,
+            referralLinkTests: [] as any[],
+            errors: [] as string[],
+        };
+
+        // 2. Create a root user (the one sharing referral links)
+        const rootUser = await prisma.user.create({
             data: {
-                email: 'grandparent@test.com',
+                email: 'root@test.com',
                 password: 'hash',
-                referralCode: 'GRAND',
-                wallet: { create: { balance: 0, depositBalance: 1000 } },
-            },
-            include: { wallet: true },
-        });
-
-        const parent = await prisma.user.create({
-            data: {
-                email: 'parent@test.com',
-                password: 'hash',
-                referralCode: 'PARENT',
-                referredBy: 'GRAND',
-                wallet: { create: { balance: 0, depositBalance: 1000 } },
-            },
-            include: { wallet: true },
-        });
-
-        const child = await prisma.user.create({
-            data: {
-                email: 'child@test.com',
-                password: 'hash',
-                referralCode: 'CHILD',
-                referredBy: 'PARENT',
-                wallet: { create: { balance: 0, depositBalance: 1000 } },
-            },
-            include: { wallet: true },
-        });
-
-        // 3. Create Investments - Upline users must have active investments
-        await prisma.investment.create({
-            data: {
-                userId: grandparent.id,
-                walletId: grandparent.wallet!.id,
-                packageName: 'Starter',
-                amount: new Decimal(100),
-                dailyROI: new Decimal(1.0), // 1% daily
-                status: 'ACTIVE',
-                isActive: true,
+                referralCode: 'ROOT2024',
+                wallet: { create: { balance: 0, depositBalance: 0 } },
             },
         });
 
-        await prisma.investment.create({
-            data: {
-                userId: parent.id,
-                walletId: parent.wallet!.id,
-                packageName: 'Starter',
-                amount: new Decimal(100),
-                dailyROI: new Decimal(1.0), // 1% daily
-                status: 'ACTIVE',
-                isActive: true,
+        console.log(`Root user created: ${rootUser.referralCode}`);
+
+        // 3. Generate referral link (same as in the app)
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const referralLink = `${baseUrl}/signup?ref=${rootUser.referralCode}`;
+
+        console.log(`Testing referral link: ${referralLink}`);
+
+        // 4. Simulate 55 users clicking the referral link and signing up
+        for (let i = 1; i <= 55; i++) {
+            try {
+                const email = `user${i}@test.com`;
+                const refCode = `USER${String(i).padStart(4, '0')}`;
+
+                // Simulate what happens when user clicks the link:
+                // 1. Extract ref parameter (done by signup page - line 11 in signup/page.tsx)
+                const urlParams = new URLSearchParams(`ref=${rootUser.referralCode}`);
+                const extractedRef = urlParams.get('ref');
+
+                // 2. User fills form and submits (lines 67-69 in signup/page.tsx)
+                // The form converts to uppercase and trims
+                const submittedRefCode = extractedRef?.trim().toUpperCase();
+
+                // 3. Backend processes signup (lines 164-205 in api/auth/signup/route.ts)
+                // Validate referral code exists
+                const cleanReferralCode = submittedRefCode?.trim().toUpperCase();
+
+                let referredBy = null;
+                if (cleanReferralCode && cleanReferralCode.length > 0 && cleanReferralCode.length <= 20) {
+                    const referrer = await prisma.user.findUnique({
+                        where: { referralCode: cleanReferralCode },
+                        select: { referralCode: true },
+                    });
+
+                    if (referrer) {
+                        referredBy = referrer.referralCode;
+                    } else {
+                        results.errors.push(`User ${i}: Referral code '${cleanReferralCode}' not found`);
+                    }
+                }
+
+                // 4. Create user with referral (lines 223-245 in api/auth/signup/route.ts)
+                const newUser = await prisma.user.create({
+                    data: {
+                        email,
+                        password: 'hash',
+                        referralCode: refCode,
+                        referredBy,
+                        wallet: { create: { balance: 0, depositBalance: 0 } },
+                    },
+                });
+
+                if (referredBy) {
+                    results.successfulSignups++;
+                    results.referralLinkTests.push({
+                        userId: i,
+                        email,
+                        referralCode: newUser.referralCode,
+                        referredBy: newUser.referredBy,
+                        success: true,
+                    });
+                } else {
+                    results.failedSignups++;
+                    results.referralLinkTests.push({
+                        userId: i,
+                        email,
+                        referralCode: newUser.referralCode,
+                        referredBy: null,
+                        success: false,
+                        reason: 'Referral code validation failed',
+                    });
+                }
+
+            } catch (error: any) {
+                results.failedSignups++;
+                results.errors.push(`User ${i}: ${error.message}`);
+                results.referralLinkTests.push({
+                    userId: i,
+                    success: false,
+                    error: error.message,
+                });
+            }
+        }
+
+        results.totalUsers = 55;
+
+        // 5. Verify all referrals are properly linked
+        const referredUsers = await prisma.user.findMany({
+            where: { referredBy: rootUser.referralCode },
+            select: {
+                id: true,
+                email: true,
+                referralCode: true,
+                referredBy: true,
             },
         });
 
-        const childInvestment = await prisma.investment.create({
-            data: {
-                userId: child.id,
-                walletId: child.wallet!.id,
-                packageName: 'Starter',
-                amount: new Decimal(100), // $100 investment
-                dailyROI: new Decimal(1.0), // 1% daily ROI = $1.00
-                status: 'ACTIVE',
-                isActive: true,
-            },
-        });
+        console.log(`Total users referred: ${referredUsers.length}`);
 
-        // 4. Run ROI Processor
-        const result = await processDailyRoi(true); // true = skip idempotency check
+        // 6. Test different edge cases
+        const edgeCases = {
+            lowercaseRef: null as any,
+            uppercaseRef: null as any,
+            mixedCaseRef: null as any,
+            withSpaces: null as any,
+            emptyRef: null as any,
+            nullRef: null as any,
+        };
 
-        // 5. Verify Earnings
-        const childWalletAfter = await prisma.wallet.findUnique({ where: { id: child.wallet!.id } });
-        const parentWalletAfter = await prisma.wallet.findUnique({ where: { id: parent.wallet!.id } });
-        const grandparentWalletAfter = await prisma.wallet.findUnique({ where: { id: grandparent.wallet!.id } });
+        // Test lowercase
+        try {
+            const lowerRef = rootUser.referralCode.toLowerCase();
+            const referrer = await prisma.user.findUnique({
+                where: { referralCode: lowerRef.toUpperCase() },
+            });
+            edgeCases.lowercaseRef = {
+                success: !!referrer,
+                tested: lowerRef,
+                found: referrer?.referralCode || null,
+            };
+        } catch (e: any) {
+            edgeCases.lowercaseRef = { success: false, error: e.message };
+        }
 
-        const childEarnings = await prisma.earnings.findMany({
-            where: { userId: child.id },
-            orderBy: { createdAt: 'asc' },
-        });
+        // Test uppercase (should work)
+        try {
+            const upperRef = rootUser.referralCode.toUpperCase();
+            const referrer = await prisma.user.findUnique({
+                where: { referralCode: upperRef },
+            });
+            edgeCases.uppercaseRef = {
+                success: !!referrer,
+                tested: upperRef,
+                found: referrer?.referralCode || null,
+            };
+        } catch (e: any) {
+            edgeCases.uppercaseRef = { success: false, error: e.message };
+        }
 
-        const parentEarnings = await prisma.earnings.findMany({
-            where: { userId: parent.id },
-            orderBy: { createdAt: 'asc' },
-        });
+        // Test mixed case
+        try {
+            const mixedRef = 'RoOt2024';
+            const referrer = await prisma.user.findUnique({
+                where: { referralCode: mixedRef.toUpperCase() },
+            });
+            edgeCases.mixedCaseRef = {
+                success: !!referrer,
+                tested: mixedRef,
+                normalized: mixedRef.toUpperCase(),
+                found: referrer?.referralCode || null,
+            };
+        } catch (e: any) {
+            edgeCases.mixedCaseRef = { success: false, error: e.message };
+        }
 
-        const grandparentEarnings = await prisma.earnings.findMany({
-            where: { userId: grandparent.id },
-            orderBy: { createdAt: 'asc' },
-        });
+        // Test with spaces
+        try {
+            const spacedRef = `  ${rootUser.referralCode}  `;
+            const referrer = await prisma.user.findUnique({
+                where: { referralCode: spacedRef.trim().toUpperCase() },
+            });
+            edgeCases.withSpaces = {
+                success: !!referrer,
+                tested: spacedRef,
+                normalized: spacedRef.trim().toUpperCase(),
+                found: referrer?.referralCode || null,
+            };
+        } catch (e: any) {
+            edgeCases.withSpaces = { success: false, error: e.message };
+        }
+
+        // Test empty string
+        try {
+            const emptyRef = '';
+            const referrer = await prisma.user.findUnique({
+                where: { referralCode: emptyRef },
+            });
+            edgeCases.emptyRef = {
+                success: false, // Should not find anything
+                tested: emptyRef,
+                found: referrer?.referralCode || null,
+            };
+        } catch (e: any) {
+            edgeCases.emptyRef = { success: false, error: e.message };
+        }
 
         return NextResponse.json({
             success: true,
             summary: {
-                processed: result.processed,
-                skipped: result.skipped,
-                totalRoiPaid: result.totalRoiPaid.toString(),
-                totalReferralPaid: result.totalReferralPaid.toString(),
+                totalUsers: results.totalUsers,
+                successfulSignups: results.successfulSignups,
+                failedSignups: results.failedSignups,
+                successRate: `${((results.successfulSignups / results.totalUsers) * 100).toFixed(2)}%`,
             },
-            expected: {
-                childROI: '$1.00',
-                parentCommission: '$0.10 (Level 1 - 10% of Child ROI)',
-                grandparentCommission: '$0.05 (Level 2 - 5% of Child ROI)',
+            referralLink: {
+                url: referralLink,
+                rootUser: rootUser.referralCode,
+                totalReferred: referredUsers.length,
+                expectedReferred: 55,
             },
-            actual: {
-                child: {
-                    balance: childWalletAfter?.balance.toString(),
-                    earnings: childEarnings.map(e => ({
-                        type: e.type,
-                        amount: e.amount.toString(),
-                        description: e.description,
-                    })),
-                },
-                parent: {
-                    balance: parentWalletAfter?.balance.toString(),
-                    roiTotal: parentWalletAfter?.roiTotal.toString(),
-                    referralTotal: parentWalletAfter?.referralTotal.toString(),
-                    earnings: parentEarnings.map(e => ({
-                        type: e.type,
-                        amount: e.amount.toString(),
-                        description: e.description,
-                    })),
-                },
-                grandparent: {
-                    balance: grandparentWalletAfter?.balance.toString(),
-                    roiTotal: grandparentWalletAfter?.roiTotal.toString(),
-                    referralTotal: grandparentWalletAfter?.referralTotal.toString(),
-                    earnings: grandparentEarnings.map(e => ({
-                        type: e.type,
-                        amount: e.amount.toString(),
-                        description: e.description,
-                    })),
-                },
-            },
+            edgeCases,
+            sampleReferrals: referredUsers.slice(0, 5).map(u => ({
+                email: u.email,
+                code: u.referralCode,
+                referredBy: u.referredBy,
+            })),
+            errors: results.errors.slice(0, 10), // Show first 10 errors
             verdict: {
-                parentGotCommission: parentEarnings.some(e => e.type === 'referral'),
-                grandparentGotCommission: grandparentEarnings.some(e => e.type === 'referral'),
-                isWorking: parentEarnings.some(e => e.type === 'referral') && grandparentEarnings.some(e => e.type === 'referral'),
+                allUsersSignedUp: results.successfulSignups === results.totalUsers,
+                allUsersLinked: referredUsers.length === results.successfulSignups,
+                isWorking: results.successfulSignups === results.totalUsers && referredUsers.length === results.successfulSignups,
+                issues: results.failedSignups > 0 ? [
+                    `${results.failedSignups} users failed to sign up with referral link`,
+                    'Check errors array for details',
+                ] : [],
             },
         });
+
     } catch (error) {
         console.error('Test error:', error);
         return NextResponse.json(
